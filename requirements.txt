@@ -3,3 +3,4 @@ pandas
 fpdf
 openpyxl
 matplotlib
+psycopg2-binary

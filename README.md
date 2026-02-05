@@ -1,48 +1,112 @@
 # CriaControl - Sistema de Pesagem de Bezerros
 
-## SIMPLES E ROBUSTO 🐄
+## 🐄 Sistema Completo com PostgreSQL
 
-### Como usar:
+---
 
-1. **Instalar dependências:**
+## 🚀 Deploy no Streamlit Cloud
+
+### 1. Criar PostgreSQL Grátis (Supabase)
+
+1. Acesse: **https://supabase.com**
+2. Clique em "Start your project" → "New Project"
+3. Preencha:
+   - **Name:** `criacontrol`
+   - **Database Password:** Anote a senha!
+4. Aguarde criar (2-3 minutos)
+5. Vá em **Settings** → **Database** → **Connection string**
+6. Copie a URL (formato: `postgresql://user:pass@host:5432/db`)
+
+### 2. Configurar no Streamlit Cloud
+
+1. Acesse: **https://share.streamlit.io**
+2. Selecione o repositório `jeffersonss-tech/criacontrol`
+3. Em **Advanced settings** → **Secrets**, adicione:
+   ```toml
+   DATABASE_URL = "postgresql://seu-usuario:sua-senha@host:5432/db"
    ```
-   pip install streamlit pandas
-   ```
 
-2. **Rodar o app:**
-   ```
-   iniciar.bat
-   ```
+### 3. Deploy
 
-3. **Login padrão:**
-   - Usuário: `admin`
-   - Senha: `admin123`
+1. Clique em **Deploy!**
+2. Aguarde build e start (~2-3 minutos)
+3. Acesse a URL gerada!
 
-### Cada usuário tem seus próprios dados!
+---
 
-- Cada usuário = 1 banco de dados separado
-- Os dados são isolados automaticamente
-- Ninguém vê os dados dos outros
+## 💻 Desenvolvimento Local
 
-### Funcionalidades:
+### Sem PostgreSQL (SQLite):
+```bash
+pip install streamlit pandas fpdf openpyxl matplotlib
+streamlit run app.py
+```
 
-- 📊 Dashboard com estatísticas
-- ➕ Nova Pesagem
-- 📋 Consultar e filtrar
-- 📈 Relatórios por lote/sexo/raça
-- 🗑️ Deletar e limpar dados
+### Com PostgreSQL local:
+```bash
+pip install streamlit pandas fpdf openpyxl matplotlib psycopg2-binary
+export DATABASE_URL="postgresql://user:pass@localhost:5432/db"
+streamlit run app.py
+```
 
-### Estrutura:
+### Setup do banco:
+```bash
+python -c "import database; database.setup_database()"
+```
+
+---
+
+## 🔐 Login Padrão
+
+- **Usuário:** `admin`
+- **Senha:** `admin123`
+
+---
+
+## 📊 Funcionalidades
+
+- 📊 Dashboard com estatísticas e gráficos
+- ➕ Nova Pesagem (ID automático)
+- 📋 Consultar e filtrar por lote
+- 📈 Relatórios (Excel + PDF)
+- 👥 Gerenciar usuários (admin)
+- 🔐 Dados persistentes no PostgreSQL
+
+---
+
+## 🎯 Cada Usuário = Dados Isolados
+
+- Os dados são filtrados por `user_id`
+- Cada usuário só vê suas próprias pesagens
+- Administrador pode gerenciar todos os usuários
+
+---
+
+## 📁 Estrutura
 
 ```
-criacontrol_novo/
+criacontrol/
 ├── app.py           # Interface Streamlit
-├── auth.py          # Sistema de login
-├── database.py     # Banco de dados (1 por usuário!)
-├── requirements.txt
-└── iniciar.bat      # Rodar o app
+├── auth.py          # Sistema de autenticação
+├── database.py      # Banco PostgreSQL + SQLite fallback
+├── requirements.txt # Dependências
+├── iniciar.bat      # Script de inicialização (Windows)
+└── README.md        # Este arquivo
 ```
 
-### Criar novos usuários:
+---
 
-Na página de login, expanda "Criar novo usuário" e preencha os dados.
+## 🛠️ Technologies
+
+- **Streamlit** - Interface web
+- **PostgreSQL** - Banco de dados cloud
+- **Python** - Lógica
+- **Pandas** - Manipulação de dados
+- **FPDF** - Geração de PDFs
+- **Openpyxl** - Exportação Excel
+
+---
+
+## 📝 Licença
+
+MIT License - Feito com ❤️ para o agronegócio brasileiro 🇧🇷

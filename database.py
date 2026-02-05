@@ -1,167 +1,348 @@
 """
-Banco de dados SIMPLES e ROBUSTO
-Cada usuário = sua própria fazenda
+CriaControl Database - PostgreSQL Version
+Adapted for cloud deployment with persistent data
 """
-import sqlite3
 import os
-import secrets
+import psycopg2
+from psycopg2.extras import RealDictCursor
 import json
-from datetime import datetime
 
-DB_PATH = os.path.join(os.path.dirname(__file__), "pesagem.db")
-SESSION_PATH = os.path.join(os.path.dirname(__file__), "session.json")
+# Get database URL from environment variable
+DATABASE_URL = os.environ.get('DATABASE_URL')
 
-def get_db_path(user_id):
-    """Cada usuário tem seu próprio arquivo de banco!"""
-    return os.path.join(os.path.dirname(__file__), f"data_{user_id}.db")
+def get_connection():
+    """Get PostgreSQL connection."""
+    if DATABASE_URL:
+        return psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
+    else:
+        # Fallback to SQLite for local development
+        return get_sqlite_connection()
 
-def init_user_db(user_id):
-    """Inicializa o banco de um usuário específico."""
-    db_file = get_db_path(user_id)
-    os.makedirs(os.path.dirname(db_file), exist_ok=True)
-    
-    conn = sqlite3.connect(db_file)
-    cursor = conn.cursor()
-    
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS pesagem (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            numero_bezerro TEXT NOT NULL,
-            lote TEXT NOT NULL,
-            data_pesagem TEXT NOT NULL,
-            horario_pesagem TEXT NOT NULL,
-            sexo TEXT NOT NULL,
-            raca TEXT NOT NULL,
-            peso_kg REAL NOT NULL,
-            observacoes TEXT,
-            created_at TEXT DEFAULT CURRENT_TIMESTAMP
-        )
-    ''')
-    
-    conn.commit()
-    conn.close()
+def get_sqlite_connection():
+    """Get SQLite connection (fallback for local development)."""
+    import sqlite3
+    user = get_current_user()
+    db_file = f"data_{user['id']}.db" if user else "data.db"
+    return sqlite3.connect(db_file)
 
-# ===== SESSÃO PERSISTENTE =====
-def save_session(user):
-    """Salva sessão em arquivo para persistência."""
-    token = secrets.token_hex(16)
-    session = {
-        'token': token,
-        'user_id': user['id'],
-        'username': user['username'],
-        'role': user['role'],
-        'created_at': datetime.now().isoformat()
-    }
-    with open(SESSION_PATH, 'w', encoding='utf-8') as f:
-        json.dump(session, f)
-    return token
+# ============== USER FUNCTIONS ==============
 
-def load_session():
-    """Carrega sessão persistente."""
-    if os.path.exists(SESSION_PATH):
-        try:
-            with open(SESSION_PATH, 'r', encoding='utf-8') as f:
-                session = json.load(f)
-                return {
-                    'id': session['user_id'],
-                    'username': session['username'],
-                    'role': session['role']
-                }
-        except:
-            return None
-    return None
-
-def clear_session():
-    """Limpa sessão (logout)."""
-    if os.path.exists(SESSION_PATH):
-        os.remove(SESSION_PATH)
-
-def adicionar_pesagem(user_id, numero, lote, data, horario, sexo, raca, peso, obs=''):
-    """Adiciona pesagem ao banco DO USUÁRIO."""
-    db_file = get_db_path(user_id)
-    
-    # Se o arquivo não existe, cria
-    if not os.path.exists(db_file):
-        init_user_db(user_id)
-    
-    conn = sqlite3.connect(db_file)
-    cursor = conn.cursor()
-    
+def create_user(username, password, role='user'):
+    """Create a new user in PostgreSQL."""
+    conn = get_connection()
     try:
-        cursor.execute('''
-            INSERT INTO pesagem (numero_bezerro, lote, data_pesagem, horario_pesagem, sexo, raca, peso_kg, observacoes)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (numero, lote, data, horario, sexo, raca, peso, obs))
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO users (username, password, role)
+            VALUES (%s, %s, %s)
+            RETURNING id, username, role
+        """, (username, password, role))
+        user = cur.fetchone()
         conn.commit()
+        return True, f"Usuário {username} criado com sucesso!"
+    except psycopg2.IntegrityError:
+        return False, "Usuário já existe!"
+    except Exception as e:
+        print(f"Error: {e}")
+        # Fallback to SQLite if table doesn't exist
+        return create_user_sqlite(username, password, role)
+    finally:
         conn.close()
+
+def authenticate(username, password):
+    """Authenticate user from PostgreSQL."""
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT id, username, role 
+            FROM users 
+            WHERE username = %s AND password = %s
+        """, (username, password))
+        user = cur.fetchone()
+        if user:
+            return True, dict(user)
+        return False, None
+    except Exception as e:
+        print(f"Error: {e}")
+        return authenticate_sqlite(username, password)
+    finally:
+        conn.close()
+
+def get_all_users():
+    """Get all users (admin only) from PostgreSQL."""
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT id, username, role FROM users ORDER BY id")
+        return [dict(row) for row in cur.fetchall()]
+    except Exception as e:
+        print(f"Error: {e}")
+        return get_all_users_sqlite()
+    finally:
+        conn.close()
+
+def update_user_role(user_id, new_role):
+    """Update user role in PostgreSQL."""
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute("UPDATE users SET role = %s WHERE id = %s", (new_role, user_id))
+        conn.commit()
         return True
-    except:
-        conn.close()
+    except Exception as e:
+        print(f"Error: {e}")
         return False
+    finally:
+        conn.close()
+
+def delete_user(user_id):
+    """Delete user from PostgreSQL."""
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute("DELETE FROM users WHERE id = %s", (user_id,))
+        conn.commit()
+        return True
+    except Exception as e:
+        print(f"Error: {e}")
+        return False
+    finally:
+        conn.close()
+
+def update_user_password(user_id, new_password):
+    """Update user password in PostgreSQL."""
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute("UPDATE users SET password = %s WHERE id = %s", (new_password, user_id))
+        conn.commit()
+        return True
+    except Exception as e:
+        print(f"Error: {e}")
+        return False
+    finally:
+        conn.close()
+
+# ============== WEIGHING FUNCTIONS ==============
+
+def salvar_pesagem(user_id, numero_bezerro, peso_kg, sexo, raca, lote):
+    """Save weighing record to PostgreSQL."""
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO pesagens (user_id, numero_bezerro, peso_kg, sexo, raca, lote)
+            VALUES (%s, %s, %s, %s, %s, %s)
+            RETURNING id
+        """, (user_id, numero_bezerro, peso_kg, sexo, raca, lote))
+        pesagem_id = cur.fetchone()['id']
+        conn.commit()
+        return pesagem_id
+    except Exception as e:
+        print(f"Error: {e}")
+        return None
+    finally:
+        conn.close()
 
 def obter_pesagens(user_id):
-    """Obtém TODAS as pesagens DO USUÁRIO."""
-    db_file = get_db_path(user_id)
-    
-    if not os.path.exists(db_file):
+    """Get all weighings for a user from PostgreSQL."""
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT id, numero_bezerro, peso_kg, sexo, raca, lote, data_pesagem
+            FROM pesagens 
+            WHERE user_id = %s
+            ORDER BY data_pesagem DESC, id DESC
+        """, (user_id,))
+        return [dict(row) for row in cur.fetchall()]
+    except Exception as e:
+        print(f"Error: {e}")
         return []
-    
-    conn = sqlite3.connect(db_file)
-    cursor = conn.cursor()
-    cursor.execute('SELECT * FROM pesagem ORDER BY id DESC')
-    rows = cursor.fetchall()
-    conn.close()
-    
-    return [dict(zip(['id', 'numero_bezerro', 'lote', 'data_pesagem', 'horario_pesagem', 'sexo', 'raca', 'peso_kg', 'observacoes', 'created_at'], row)) for row in rows]
-
-def obter_estatisticas(user_id):
-    """Obtém estatísticas DO USUÁRIO."""
-    pesagens = obter_pesagens(user_id)
-    
-    if not pesagens:
-        return {'total': 0, 'peso_total': 0, 'peso_medio': 0}
-    
-    pesos = [p['peso_kg'] for p in pesagens]
-    
-    return {
-        'total': len(pesos),
-        'peso_total': sum(pesos),
-        'peso_medio': sum(pesos) / len(pesos)
-    }
+    finally:
+        conn.close()
 
 def obter_lotes(user_id):
-    """Obtém lotes DO USUÁRIO."""
-    pesagens = obter_pesagens(user_id)
-    return sorted(list(set([p['lote'] for p in pesagens])))
+    """Get all lots for a user from PostgreSQL."""
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT DISTINCT lote FROM pesagens WHERE user_id = %s ORDER BY lote", (user_id,))
+        return [row['lote'] for row in cur.fetchall()]
+    except Exception as e:
+        print(f"Error: {e}")
+        return []
+    finally:
+        conn.close()
+
+def obter_estatisticas(user_id):
+    """Get statistics for a user from PostgreSQL."""
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT 
+                COUNT(*) as total,
+                SUM(peso_kg) as peso_total,
+                AVG(peso_kg) as media_peso,
+                MIN(peso_kg) as peso_min,
+                MAX(peso_kg) as peso_max
+            FROM pesagens 
+            WHERE user_id = %s
+        """, (user_id,))
+        stats = cur.fetchone()
+        return dict(stats) if stats else None
+    except Exception as e:
+        print(f"Error: {e}")
+        return None
+    finally:
+        conn.close()
 
 def deletar_pesagem(user_id, pesagem_id):
-    """Deleta uma pesagem DO USUÁRIO."""
-    db_file = get_db_path(user_id)
-    
-    if not os.path.exists(db_file):
+    """Delete a weighing record from PostgreSQL."""
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute("DELETE FROM pesagens WHERE user_id = %s AND id = %s", (user_id, pesagem_id))
+        conn.commit()
+        return True
+    except Exception as e:
+        print(f"Error: {e}")
         return False
-    
-    conn = sqlite3.connect(db_file)
-    cursor = conn.cursor()
-    cursor.execute('DELETE FROM pesagem WHERE id = ?', (pesagem_id,))
-    conn.commit()
-    conn.close()
-    return True
+    finally:
+        conn.close()
 
 def limpar_dados(user_id):
-    """Limpa TODOS os dados DO USUÁRIO."""
-    db_file = get_db_path(user_id)
-    
-    if os.path.exists(db_file):
-        os.remove(db_file)
-    
-    init_user_db(user_id)
-    return True
+    """Clear all data for a user from PostgreSQL."""
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute("DELETE FROM pesagens WHERE user_id = %s", (user_id,))
+        conn.commit()
+        return True
+    except Exception as e:
+        print(f"Error: {e}")
+        return False
+    finally:
+        conn.close()
 
-def gerar_id_automatico():
-    """Gera ID automático no formato: BZ-YYYYMMDD-XXXX"""
-    import uuid
-    from datetime import datetime
-    data = datetime.now().strftime("%Y%m%d")
-    uid = str(uuid.uuid4())[:4].upper()
-    return f"BZ-{data}-{uid}"
+# ============== SESSION FUNCTIONS ==============
+
+def save_session(user):
+    """Save session to file."""
+    with open('.session.json', 'w') as f:
+        json.dump(user, f)
+
+def load_session():
+    """Load session from file."""
+    try:
+        with open('.session.json', 'r') as f:
+            return json.load(f)
+    except FileNotFoundError:
+        return None
+
+def clear_session():
+    """Clear session file."""
+    try:
+        os.remove('.session.json')
+    except FileNotFoundError:
+        pass
+
+def get_current_user():
+    """Get current user from session."""
+    return load_session()
+
+# ============== SQLITE FALLBACK FUNCTIONS ==============
+
+def create_user_sqlite(username, password, role='user'):
+    """Create user in SQLite (fallback)."""
+    import sqlite3
+    conn = sqlite3.connect('users.db')
+    cur = conn.cursor()
+    try:
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT UNIQUE,
+                password TEXT,
+                role TEXT DEFAULT 'user'
+            )
+        """)
+        cur.execute("INSERT INTO users (username, password, role) VALUES (?, ?, ?)",
+                   (username, password, role))
+        conn.commit()
+        return True, f"Usuário {username} criado com sucesso!"
+    except sqlite3.IntegrityError:
+        return False, "Usuário já existe!"
+    finally:
+        conn.close()
+
+def authenticate_sqlite(username, password):
+    """Authenticate user from SQLite (fallback)."""
+    import sqlite3
+    conn = sqlite3.connect('users.db')
+    cur = conn.cursor()
+    cur.execute("SELECT id, username, role FROM users WHERE username = ? AND password = ?",
+               (username, password))
+    user = cur.fetchone()
+    conn.close()
+    if user:
+        return True, {'id': user[0], 'username': user[1], 'role': user[2]}
+    return False, None
+
+def get_all_users_sqlite():
+    """Get all users from SQLite (fallback)."""
+    import sqlite3
+    conn = sqlite3.connect('users.db')
+    cur = conn.cursor()
+    cur.execute("SELECT id, username, role FROM users ORDER BY id")
+    users = [{'id': row[0], 'username': row[1], 'role': row[2]} for row in cur.fetchall()]
+    conn.close()
+    return users
+
+# ============== DATABASE SETUP ==============
+
+def setup_database():
+    """Create tables in PostgreSQL."""
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        
+        # Create users table
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                id SERIAL PRIMARY KEY,
+                username VARCHAR(80) UNIQUE NOT NULL,
+                password VARCHAR(120) NOT NULL,
+                role VARCHAR(20) DEFAULT 'user',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        
+        # Create pesagens table
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS pesagens (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                numero_bezerro VARCHAR(50) NOT NULL,
+                peso_kg DECIMAL(10,2) NOT NULL,
+                sexo VARCHAR(20) NOT NULL,
+                raca VARCHAR(50) NOT NULL,
+                lote VARCHAR(50) NOT NULL,
+                data_pesagem TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        
+        # Create indexes
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_pesagens_user_id ON pesagens(user_id)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_pesagens_lote ON pesagens(lote)")
+        
+        conn.commit()
+        print("Database setup completed successfully!")
+        return True
+    except Exception as e:
+        print(f"Error setting up database: {e}")
+        return False
+    finally:
+        conn.close()
