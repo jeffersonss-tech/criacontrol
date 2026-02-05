@@ -12,10 +12,15 @@ DATABASE_URL = os.environ.get('DATABASE_URL')
 
 def get_connection():
     """Get PostgreSQL connection."""
-    if DATABASE_URL:
-        return psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
+    if DATABASE_URL and DATABASE_URL.strip():
+        try:
+            return psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
+        except psycopg2.OperationalError as e:
+            print(f"PostgreSQL connection failed: {e}")
+            print("Falling back to SQLite...")
+            return get_sqlite_connection()
     else:
-        # Fallback to SQLite for local development
+        print("No DATABASE_URL found, using SQLite...")
         return get_sqlite_connection()
 
 def get_sqlite_connection():
@@ -28,7 +33,7 @@ def get_sqlite_connection():
 # ============== USER FUNCTIONS ==============
 
 def create_user(username, password, role='user'):
-    """Create a new user in PostgreSQL."""
+    """Create a new user."""
     conn = get_connection()
     try:
         cur = conn.cursor()
@@ -44,7 +49,6 @@ def create_user(username, password, role='user'):
         return False, "Usuário já existe!"
     except Exception as e:
         print(f"Error: {e}")
-        # Fallback to SQLite if table doesn't exist
         return create_user_sqlite(username, password, role)
     finally:
         conn.close()
