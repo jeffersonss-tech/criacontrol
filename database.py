@@ -130,16 +130,32 @@ def update_user_password(user_id, new_password):
 
 # ============== WEIGHING FUNCTIONS ==============
 
-def adicionar_pesagem(user_id, numero_bezerro, peso_kg, sexo, raca, lote):
+def adicionar_pesagem(user_id, numero_bezerro, peso_kg, sexo, raca, lote, data=None, hora=None, obs=None):
     """Save weighing record to PostgreSQL."""
     conn = get_connection()
     try:
         cur = conn.cursor()
-        cur.execute("""
-            INSERT INTO pesagens (user_id, numero_bezerro, peso_kg, sexo, raca, lote)
-            VALUES (%s, %s, %s, %s, %s, %s)
-            RETURNING id
-        """, (user_id, numero_bezerro, peso_kg, sexo, raca, lote))
+        
+        # Se tiver data e hora separadas, combina; caso contrário usa NOW()
+        if data and hora:
+            from datetime import datetime
+            data_pesagem = f"{data} {hora}"
+        else:
+            data_pesagem = "NOW()"
+        
+        if data_pesagem == "NOW()":
+            cur.execute("""
+                INSERT INTO pesagens (user_id, numero_bezerro, peso_kg, sexo, raca, lote)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                RETURNING id
+            """, (user_id, numero_bezerro, peso_kg, sexo, raca, lote))
+        else:
+            cur.execute("""
+                INSERT INTO pesagens (user_id, numero_bezerro, peso_kg, sexo, raca, lote, data_pesagem)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                RETURNING id
+            """, (user_id, numero_bezerro, peso_kg, sexo, raca, lote, data_pesagem))
+        
         pesagem_id = cur.fetchone()['id']
         conn.commit()
         return pesagem_id
