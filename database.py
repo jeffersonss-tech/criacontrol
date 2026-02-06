@@ -22,7 +22,34 @@ def get_connection():
 def get_sqlite_connection():
     """Get SQLite connection."""
     import sqlite3
-    return sqlite3.connect('criacontrol.db')
+    conn = sqlite3.connect('criacontrol.db')
+    
+    # Create tables if not exist
+    cur = conn.cursor()
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT UNIQUE NOT NULL,
+            password TEXT NOT NULL,
+            role TEXT DEFAULT 'user'
+        )
+    """)
+    
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS pesagens (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            numero_bezerro TEXT NOT NULL,
+            peso_kg REAL NOT NULL,
+            sexo TEXT NOT NULL,
+            raca TEXT NOT NULL,
+            lote TEXT NOT NULL,
+            data_pesagem TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    
+    conn.commit()
+    return conn
 
 # ============== USER FUNCTIONS ==============
 
