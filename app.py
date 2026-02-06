@@ -654,7 +654,7 @@ def show_dashboard():
             if submit:
                 if numero and lote:
                     sexo_map = {"Macho": "M", "Femea": "F"}
-                    if database.adicionar_pesagem(user['id'], numero, lote, str(data), datetime.now().strftime("%H:%M:%S"), sexo_map[sexo], raca, peso, obs):
+                    if database.adicionar_pesagem(user['id'], numero, peso, sexo_map[sexo], raca, lote, str(data), datetime.now().strftime("%H:%M:%S"), obs):
                         st.success(f"{numero} salvo!")
                         st.rerun()
                     else:
