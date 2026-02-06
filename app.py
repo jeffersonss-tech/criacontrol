@@ -682,28 +682,31 @@ def show_dashboard():
         lotes = ["Todos"] + database.obter_lotes(user['id'])
         filtro = st.selectbox("Filtrar por Lote", lotes)
         
-        df_pesagens = pd.DataFrame(pesagens)
-        if filtro != "Todos":
-            df_pesagens = df_pesagens[df_pesagens['lote'] == filtro]
-        
-        st.dataframe(df_pesagens[['numero_bezerro', 'lote', 'data_pesagem', 'sexo', 'raca', 'peso_kg']], use_container_width=True)
-        
-        # Deletar
-        st.markdown("---")
-        st.write("Deletar")
-        ids = [""] + list(df_pesagens['id'])
-        delete_id = st.selectbox("Selecionar", ids)
-        if delete_id and st.button("Deletar"):
-            if database.deletar_pesagem(user['id'], delete_id):
-                st.success("Deletado!")
-                st.rerun()
-        
-        # Limpar tudo
-        st.markdown("---")
-        if st.button("Limpar TODOS os dados"):
-            if database.limpar_dados(user['id']):
-                st.success("Limpo!")
-                st.rerun()
+        if pesagens:
+            df_pesagens = pd.DataFrame(pesagens)
+            if filtro != "Todos":
+                df_pesagens = df_pesagens[df_pesagens['lote'] == filtro]
+            
+            st.dataframe(df_pesagens[['numero_bezerro', 'lote', 'data_pesagem', 'sexo', 'raca', 'peso_kg']], use_container_width=True)
+            
+            # Deletar
+            st.markdown("---")
+            st.write("Deletar")
+            ids = [""] + list(df_pesagens['id'])
+            delete_id = st.selectbox("Selecionar", ids)
+            if delete_id and st.button("Deletar"):
+                if database.deletar_pesagem(user['id'], delete_id):
+                    st.success("Deletado!")
+                    st.rerun()
+            
+            # Limpar tudo
+            st.markdown("---")
+            if st.button("Limpar TODOS os dados"):
+                if database.limpar_dados(user['id']):
+                    st.success("Limpo!")
+                    st.rerun()
+        else:
+            st.info("Nenhuma pesagem encontrada.")
     
     # ============ GERENCIAR USUARIOS ============
     elif menu == "👥 Gerenciar Usuários":
