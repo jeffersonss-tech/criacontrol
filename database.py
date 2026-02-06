@@ -23,33 +23,69 @@ def get_sqlite_connection():
     """Get SQLite connection."""
     import sqlite3
     conn = sqlite3.connect('criacontrol.db')
-    
-    # Create tables if not exist
-    cur = conn.cursor()
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT UNIQUE NOT NULL,
-            password TEXT NOT NULL,
-            role TEXT DEFAULT 'user'
-        )
-    """)
-    
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS pesagens (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            numero_bezerro TEXT NOT NULL,
-            peso_kg REAL NOT NULL,
-            sexo TEXT NOT NULL,
-            raca TEXT NOT NULL,
-            lote TEXT NOT NULL,
-            data_pesagem TEXT DEFAULT CURRENT_TIMESTAMP
-        )
-    """)
-    
-    conn.commit()
+    conn.row_factory = sqlite3.Row  # IMPORTANT: Use named rows
     return conn
+
+def get_pg_connection():
+    """Get PostgreSQL connection only."""
+    if DATABASE_URL.strip():
+        return psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
+    return None
+
+# ============== SETUP ==============
+
+def setup_database():
+    """Create tables in PostgreSQL."""
+    conn = get_pg_connection()
+    if not conn:
+        print("No PostgreSQL URL configured")
+        return False
+    
+    try:
+        cur = conn.cursor()
+        
+        # Drop existing tables
+        cur.execute("DROP TABLE IF EXISTS pesagens CASCADE")
+        cur.execute("DROP TABLE IF EXISTS users CASCADE")
+        
+        # Create users table
+        cur.execute("""
+            CREATE TABLE users (
+                id SERIAL PRIMARY KEY,
+                username VARCHAR(80) UNIQUE NOT NULL,
+                password VARCHAR(120) NOT NULL,
+                role VARCHAR(20) DEFAULT 'user',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        
+        # Create pesagens table
+        cur.execute("""
+            CREATE TABLE pesagens (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                numero_bezerro VARCHAR(50) NOT NULL,
+                peso_kg DECIMAL(10,2) NOT NULL,
+                sexo VARCHAR(20) NOT NULL,
+                raca VARCHAR(50) NOT NULL,
+                lote VARCHAR(50) NOT NULL,
+                data_pesagem TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        
+        # Create admin user
+        cur.execute("INSERT INTO users (username, password, role) VALUES (%s, %s, %s)",
+                   ('admin', 'admin123', 'admin'))
+        
+        conn.commit()
+        print("PostgreSQL tables created!")
+        return True
+    except Exception as e:
+        print(f"Error: {e}")
+        return False
+    finally:
+        if conn:
+            conn.close()
 
 # ============== USER FUNCTIONS ==============
 
@@ -58,34 +94,10 @@ def create_user(username, password, role='user'):
     conn = get_connection()
     try:
         cur = conn.cursor()
-        
-        # Create tables if not exist
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS users (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                username TEXT UNIQUE NOT NULL,
-                password TEXT NOT NULL,
-                role TEXT DEFAULT 'user'
-            )
-        """)
-        
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS pesagens (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER NOT NULL,
-                numero_bezerro TEXT NOT NULL,
-                peso_kg REAL NOT NULL,
-                sexo TEXT NOT NULL,
-                raca TEXT NOT NULL,
-                lote TEXT NOT NULL,
-                data_pesagem TEXT DEFAULT CURRENT_TIMESTAMP
-            )
-        """)
-        
         cur.execute("INSERT INTO users (username, password, role) VALUES (?, ?, ?)",
                    (username, password, role))
         conn.commit()
-        return True, f"Usuário {username} criado com sucesso!"
+        return True, f"Usuário {username} criado!"
     except Exception as e:
         print(f"Error: {e}")
         return False, "Usuário já existe!"
@@ -99,9 +111,9 @@ def authenticate(username, password):
         cur = conn.cursor()
         cur.execute("SELECT id, username, role FROM users WHERE username = ? AND password = ?",
                    (username, password))
-        user = cur.fetchone()
-        if user:
-            return True, {'id': user[0], 'username': user[1], 'role': user[2]}
+        row = cur.fetchone()
+        if row:
+            return True, {'id': row[0], 'username': row[1], 'role': row[2]}
         return False, None
     except Exception as e:
         print(f"Error: {e}")
@@ -110,12 +122,12 @@ def authenticate(username, password):
         conn.close()
 
 def get_all_users():
-    """Get all users (admin only)."""
+    """Get all users."""
     conn = get_connection()
     try:
         cur = conn.cursor()
         cur.execute("SELECT id, username, role FROM users ORDER BY id")
-        return [{'id': row[0], 'username': row[1], 'role': row[2]} for row in cur.fetchall()]
+        return [{'id': r[0], 'username': r[1], 'role': r[2]} for r in cur.fetchall()]
     except Exception as e:
         print(f"Error: {e}")
         return []
@@ -172,6 +184,9 @@ def adicionar_pesagem(user_id, numero_bezerro, peso_kg, sexo, raca, lote, data=N
     try:
         cur = conn.cursor()
         
+        # Ensure peso_kg is a number
+        peso_kg = float(peso_kg)
+        
         if data and hora:
             data_pesagem = f"{data} {hora}"
         else:
@@ -186,7 +201,7 @@ def adicionar_pesagem(user_id, numero_bezerro, peso_kg, sexo, raca, lote, data=N
         conn.commit()
         return cur.lastrowid
     except Exception as e:
-        print(f"Error: {e}")
+        print(f"Error adding pesagem: {e}")
         return None
     finally:
         conn.close()
@@ -205,10 +220,15 @@ def obter_pesagens(user_id):
         
         results = []
         for row in cur.fetchall():
+            try:
+                peso = float(row[2])
+            except (ValueError, TypeError):
+                peso = 0
+            
             results.append({
                 'id': row[0],
                 'numero_bezerro': row[1],
-                'peso_kg': float(row[2]) if row[2] else 0,
+                'peso_kg': peso,
                 'sexo': row[3],
                 'raca': row[4],
                 'lote': row[5],
@@ -227,7 +247,7 @@ def obter_lotes(user_id):
     try:
         cur = conn.cursor()
         cur.execute("SELECT DISTINCT lote FROM pesagens WHERE user_id = ? ORDER BY lote", (user_id,))
-        return [row[0] for row in cur.fetchall()]
+        return [r[0] for r in cur.fetchall()]
     except Exception as e:
         print(f"Error: {e}")
         return []
@@ -240,26 +260,18 @@ def obter_estatisticas(user_id):
     try:
         cur = conn.cursor()
         cur.execute("""
-            SELECT 
-                COUNT(*) as total,
-                SUM(peso_kg) as peso_total,
-                AVG(peso_kg) as media_peso,
-                MIN(peso_kg) as peso_min,
-                MAX(peso_kg) as peso_max
-            FROM pesagens 
-            WHERE user_id = ?
+            SELECT COUNT(*), SUM(peso_kg), AVG(peso_kg), MIN(peso_kg), MAX(peso_kg)
+            FROM pesagens WHERE user_id = ?
         """, (user_id,))
         
         row = cur.fetchone()
-        if row:
-            return {
-                'total': row[0] or 0,
-                'peso_total': row[1] or 0,
-                'media_peso': row[2] or 0,
-                'peso_min': row[3] or 0,
-                'peso_max': row[4] or 0
-            }
-        return None
+        return {
+            'total': row[0] or 0,
+            'peso_total': float(row[1]) if row[1] else 0,
+            'media_peso': float(row[2]) if row[2] else 0,
+            'peso_min': float(row[3]) if row[3] else 0,
+            'peso_max': float(row[4]) if row[4] else 0
+        }
     except Exception as e:
         print(f"Error: {e}")
         return None
@@ -297,7 +309,6 @@ def limpar_dados(user_id):
 # ============== SESSION FUNCTIONS ==============
 
 def save_session(user):
-    """Save session to file."""
     try:
         with open('.session.json', 'w') as f:
             json.dump(user, f)
@@ -305,20 +316,17 @@ def save_session(user):
         pass
 
 def load_session():
-    """Load session from file."""
     try:
         with open('.session.json', 'r') as f:
             return json.load(f)
-    except FileNotFoundError:
+    except:
         return None
 
 def clear_session():
-    """Clear session file."""
     try:
         os.remove('.session.json')
-    except FileNotFoundError:
+    except:
         pass
 
 def get_current_user():
-    """Get current user from session."""
     return load_session()
