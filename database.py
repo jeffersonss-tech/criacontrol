@@ -214,12 +214,28 @@ def update_user_password(user_id, new_password):
 
 def adicionar_pesagem(user_id, numero_bezerro, peso_kg, sexo, raca, lote, data=None, hora=None, obs=None):
     """Add weighing record."""
+    # DEBUG: Print all parameters
+    print(f"DEBUG adicionar_pesagem:")
+    print(f"  user_id: {user_id} (type: {type(user_id)})")
+    print(f"  numero_bezerro: {numero_bezerro} (type: {type(numero_bezerro)})")
+    print(f"  peso_kg: {peso_kg} (type: {type(peso_kg)})")
+    print(f"  sexo: {sexo} (type: {type(sexo)})")
+    print(f"  raca: {raca} (type: {type(raca)})")
+    print(f"  lote: {lote} (type: {type(lote)})")
+    print(f"  data: {data}")
+    print(f"  hora: {hora}")
+    print(f"  obs: {obs}")
+    
     conn = get_connection()
     try:
         cur = conn.cursor()
         
         # Ensure peso_kg is a number
-        peso_kg = float(peso_kg)
+        try:
+            peso_kg = float(peso_kg)
+        except (ValueError, TypeError) as e:
+            print(f"ERROR converting peso_kg: {e}")
+            peso_kg = 0
         
         if data and hora:
             data_pesagem = f"{data} {hora}"
@@ -227,15 +243,21 @@ def adicionar_pesagem(user_id, numero_bezerro, peso_kg, sexo, raca, lote, data=N
             from datetime import datetime
             data_pesagem = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         
+        print(f"  data_pesagem: {data_pesagem}")
+        
         cur.execute("""
             INSERT INTO pesagens (user_id, numero_bezerro, peso_kg, sexo, raca, lote, data_pesagem)
             VALUES (?, ?, ?, ?, ?, ?, ?)
         """, (user_id, numero_bezerro, peso_kg, sexo, raca, lote, data_pesagem))
         
         conn.commit()
-        return cur.lastrowid
+        result = cur.lastrowid
+        print(f"  SUCCESS: inserted id {result}")
+        return result
     except Exception as e:
-        print(f"Error adding pesagem: {e}")
+        print(f"ERROR adding pesagem: {e}")
+        import traceback
+        traceback.print_exc()
         return None
     finally:
         conn.close()
