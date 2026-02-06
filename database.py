@@ -8,22 +8,53 @@ import json
 
 DATABASE_URL = os.environ.get('DATABASE_URL', '')
 
-def get_connection():
-    """Get database connection (PostgreSQL or SQLite)."""
-    if DATABASE_URL.strip():
-        try:
-            return psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
-        except psycopg2.OperationalError:
-            print("Falling back to SQLite...")
-            return get_sqlite_connection()
-    else:
-        return get_sqlite_connection()
+# Flag para controlar se tabelas já foram criadas
+_tables_created = False
+
+def _create_tables(conn):
+    """Cria tabelas se não existirem."""
+    global _tables_created
+    if _tables_created:
+        return
+    
+    cur = conn.cursor()
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT UNIQUE NOT NULL,
+            password TEXT NOT NULL,
+            role TEXT DEFAULT 'user'
+        )
+    """)
+    
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS pesagens (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            numero_bezerro TEXT NOT NULL,
+            peso_kg REAL NOT NULL,
+            sexo TEXT NOT NULL,
+            raca TEXT NOT NULL,
+            lote TEXT NOT NULL,
+            data_pesagem TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    
+    # Create admin user if not exists
+    cur.execute("SELECT id FROM users WHERE username = 'admin'")
+    if not cur.fetchone():
+        cur.execute("INSERT INTO users (username, password, role) VALUES (?, ?, ?)",
+                   ('admin', 'admin123', 'admin'))
+    
+    conn.commit()
+    _tables_created = True
 
 def get_sqlite_connection():
     """Get SQLite connection."""
     import sqlite3
     conn = sqlite3.connect('criacontrol.db')
-    conn.row_factory = sqlite3.Row  # IMPORTANT: Use named rows
+    conn.row_factory = sqlite3.Row
+    _create_tables(conn)  # Cria tabelas automaticamente
     return conn
 
 def get_pg_connection():
@@ -32,25 +63,31 @@ def get_pg_connection():
         return psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
     return None
 
-# ============== SETUP ==============
+def get_connection():
+    """Get database connection (PostgreSQL or SQLite)."""
+    if DATABASE_URL.strip():
+        try:
+            conn = psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
+            _create_pg_tables(conn)
+            return conn
+        except psycopg2.OperationalError:
+            print("Falling back to SQLite...")
+            return get_sqlite_connection()
+    else:
+        return get_sqlite_connection()
 
-def setup_database():
-    """Create tables in PostgreSQL."""
-    conn = get_pg_connection()
-    if not conn:
-        print("No PostgreSQL URL configured")
-        return False
+def _create_pg_tables(conn):
+    """Cria tabelas no PostgreSQL se não existirem."""
+    global _tables_created
+    if _tables_created:
+        return
     
     try:
         cur = conn.cursor()
         
-        # Drop existing tables
-        cur.execute("DROP TABLE IF EXISTS pesagens CASCADE")
-        cur.execute("DROP TABLE IF EXISTS users CASCADE")
-        
-        # Create users table
+        # Create tables
         cur.execute("""
-            CREATE TABLE users (
+            CREATE TABLE IF NOT EXISTS users (
                 id SERIAL PRIMARY KEY,
                 username VARCHAR(80) UNIQUE NOT NULL,
                 password VARCHAR(120) NOT NULL,
@@ -59,9 +96,8 @@ def setup_database():
             )
         """)
         
-        # Create pesagens table
         cur.execute("""
-            CREATE TABLE pesagens (
+            CREATE TABLE IF NOT EXISTS pesagens (
                 id SERIAL PRIMARY KEY,
                 user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
                 numero_bezerro VARCHAR(50) NOT NULL,
@@ -73,21 +109,19 @@ def setup_database():
             )
         """)
         
-        # Create admin user
-        cur.execute("INSERT INTO users (username, password, role) VALUES (%s, %s, %s)",
-                   ('admin', 'admin123', 'admin'))
+        # Create admin user if not exists
+        cur.execute("SELECT id FROM users WHERE username = %s", ('admin',))
+        if not cur.fetchone():
+            cur.execute("INSERT INTO users (username, password, role) VALUES (%s, %s, %s)",
+                       ('admin', 'admin123', 'admin'))
         
         conn.commit()
+        _tables_created = True
         print("PostgreSQL tables created!")
-        return True
     except Exception as e:
-        print(f"Error: {e}")
-        return False
-    finally:
-        if conn:
-            conn.close()
+        print(f"Error creating PG tables: {e}")
 
-# ============== USER FUNCTIONS ==============
+# ============== SETUP ==============
 
 def create_user(username, password, role='user'):
     """Create a new user."""
