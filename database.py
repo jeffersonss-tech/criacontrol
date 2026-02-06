@@ -208,7 +208,7 @@ def obter_pesagens(user_id):
             results.append({
                 'id': row[0],
                 'numero_bezerro': row[1],
-                'peso_kg': row[2],
+                'peso_kg': float(row[2]) if row[2] else 0,
                 'sexo': row[3],
                 'raca': row[4],
                 'lote': row[5],
