@@ -130,7 +130,7 @@ def update_user_password(user_id, new_password):
 
 # ============== WEIGHING FUNCTIONS ==============
 
-def salvar_pesagem(user_id, numero_bezerro, peso_kg, sexo, raca, lote):
+def adicionar_pesagem(user_id, numero_bezerro, peso_kg, sexo, raca, lote):
     """Save weighing record to PostgreSQL."""
     conn = get_connection()
     try:
