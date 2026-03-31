@@ -1,3 +1,4 @@
 @echo off
 cd /d "%~dp0"
-python -m streamlit run app.py
+venv\Scripts\python.exe venv\Scripts\streamlit.exe  run app.py
+pause
