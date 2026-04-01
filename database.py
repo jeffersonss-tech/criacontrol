@@ -297,6 +297,22 @@ def obter_pesagens(user_id):
     finally:
         conn.close()
 
+def numero_existe(user_id, numero_bezerro):
+    """Retorna True se o numero ja existe para este usuario."""
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT id FROM pesagens WHERE user_id = ? AND numero_bezerro = ? LIMIT 1",
+            (user_id, numero_bezerro)
+        )
+        return cur.fetchone() is not None
+    except Exception as e:
+        print(f"Error: {e}")
+        return False
+    finally:
+        conn.close()
+
 def obter_lotes(user_id):
     """Get all lots for a user."""
     conn = get_connection()

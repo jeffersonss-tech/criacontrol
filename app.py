@@ -205,6 +205,39 @@ def gerar_pdf_download(df, titulo):
     filename = titulo.replace(" ", "_") + ".pdf"
     st.download_button("Baixar PDF", data=pdf_data, file_name=filename, mime="application/pdf")
 
+@st.dialog("⚠️ ID Duplicado")
+def _dialog_confirmar_dupe(user, numero, peso, sexo, raca, lote, data, obs):
+    st.warning(f"O ID **'{numero}'** já existe neste lote. Deseja salvar mesmo assim?")
+    col_conf, col_canc = st.columns(2)
+    with col_conf:
+        if st.button("✅ Confirmar e Salvar", width='stretch'):
+            _salvar_pesagem(user, numero, peso, sexo, raca, lote, data, obs)
+    with col_canc:
+        if st.button("❌ Cancelar", width='stretch'):
+            st.rerun()
+
+def _salvar_pesagem(user, numero, peso, sexo, raca, lote, data, obs):
+    """Helper para salvar pesagem e limpar estado."""
+    sexo_map = {"Macho": "M", "Fêmea": "F"}
+    ok = database.adicionar_pesagem(
+        user['id'], numero, peso,
+        sexo_map[sexo], raca, lote, data,
+        datetime.now().strftime("%H:%M:%S"), obs
+    )
+    if ok:
+        st.session_state.np_sexo = sexo
+        st.session_state.np_raca = raca
+        st.session_state.np_peso = 0.0
+        st.session_state.np_obs = ""
+        st.session_state.np_numero = ""
+        st.session_state.np_novo_lote = ""
+        st.session_state.np_numero_auto = gerar_id_automatico()
+        if lote != "Novo Lote":
+            st.session_state.np_lote = lote
+        st.rerun()
+    else:
+        st.error("Erro ao salvar. Tente novamente.")
+
 # ===== PÁGINA DE LOGIN =====
 def show_login():
     st.markdown("""
@@ -777,28 +810,11 @@ def show_dashboard():
                     elif lote_selecionado in ["(selecione)", "Novo Lote", ""]:
                         st.error("Selecione ou crie um lote!")
                     else:
-                        sexo_map = {"Macho": "M", "Fêmea": "F"}
-                        ok = database.adicionar_pesagem(
-                            user['id'], numero_final, peso_val,
-                            sexo_map[sexo], raca,
-                            lote_selecionado,
-                            str(data),
-                            datetime.now().strftime("%H:%M:%S"),
-                            obs
-                        )
-                        if ok:
-                            st.session_state.np_sexo = sexo
-                            st.session_state.np_raca = raca
-                            st.session_state.np_peso = 0.0
-                            st.session_state.np_obs = ""
-                            st.session_state.np_numero = ""
-                            st.session_state.np_novo_lote = ""
-                            st.session_state.np_numero_auto = gerar_id_automatico()
-                            if lote_selecionado != "Novo Lote":
-                                st.session_state.np_lote = lote_selecionado
-                            st.rerun()
+                        # Verifica se ID ja existe
+                        if database.numero_existe(user['id'], numero_final):
+                            _dialog_confirmar_dupe(user, numero_final, peso_val, sexo, raca, lote_selecionado, str(data), obs)
                         else:
-                            st.error("Erro ao salvar. Tente novamente.")
+                            _salvar_pesagem(user, numero_final, peso_val, sexo, raca, lote_selecionado, str(data), obs)
 
         # ===== BLOCO 3: AÇÕES (último registro) =====
         if pesagens:
