@@ -657,18 +657,21 @@ def show_dashboard():
         if not lote_valido:
             st.warning("⚠️ Selecione ou crie um lote acima para desbloquear o registro de pesagens.")
 
-        # Checkbox FORA do form — atualiza session_state imediatamente ao clicar
-        col_toggle, col_placeholder = st.columns([1, 3])
-        with col_toggle:
-            auto_id_toggle = st.checkbox(
-                "🔑 Auto ID",
-                value=st.session_state.np_auto_id,
-                disabled=locked,
-                help="Gera ID automaticamente a cada pesagem"
-            )
-        with col_placeholder:
-            st.write("")
-        st.session_state.np_auto_id = auto_id_toggle
+        # Checkbox FORA do form com callback para reação imediata
+        def toggle_auto_id():
+            st.session_state.np_auto_id = st.session_state.cb_auto_id
+            st.session_state.np_numero_auto = gerar_id_automatico()
+            st.rerun()
+
+        st.checkbox(
+            "🔑 Auto ID",
+            value=st.session_state.np_auto_id,
+            disabled=locked,
+            key="cb_auto_id",
+            on_change=toggle_auto_id,
+            help="Gera ID automaticamente a cada pesagem"
+        )
+        auto_id_toggle = st.session_state.np_auto_id
 
         with st.form("pesagem", clear_on_submit=True):
             row1 = st.columns([3, 1])
