@@ -546,134 +546,200 @@ def show_dashboard():
     
     # ============ NOVA PESAGEM ============
     elif menu == "➕ Nova Pesagem":
-        st.subheader("Nova Pesagem")
-        
-        # Info do lote
+        st.subheader("➕ Nova Pesagem")
+
+        # --- Session state para preenchimento rápido ---
+        if 'np_lote' not in st.session_state:
+            st.session_state.np_lote = "Novo Lote"
+        if 'np_sexo' not in st.session_state:
+            st.session_state.np_sexo = "Macho"
+        if 'np_raca' not in st.session_state:
+            st.session_state.np_raca = "Zebuinos"
+        if 'np_auto_id' not in st.session_state:
+            st.session_state.np_auto_id = True
+        if 'np_peso' not in st.session_state:
+            st.session_state.np_peso = 50.0
+        if 'np_obs' not in st.session_state:
+            st.session_state.np_obs = ""
+        if 'np_numero' not in st.session_state:
+            st.session_state.np_numero = ""
+        if 'np_novo_lote' not in st.session_state:
+            st.session_state.np_novo_lote = ""
+
         lotes = database.obter_lotes(user['id'])
-        
-        c0a, c0b = st.columns([3, 1])
-        with c0a:
-            lote_selecionado = st.selectbox("Lote", ["Novo Lote"] + lotes)
-        with c0b:
+
+        # ===== BLOCO 1: SELETOR DE LOTE + STATS =====
+        st.markdown("### 📋 Lote")
+        col_lote, col_refresh = st.columns([4, 1])
+        with col_lote:
+            novo_ou_existente = st.radio(
+                "Lote", ["Existente", "Novo Lote"],
+                index=0 if st.session_state.np_lote != "Novo Lote" else 1,
+                horizontal=True, label_visibility="collapsed"
+            )
+        with col_refresh:
             st.write("")
-            st.write("")
-            if st.button("Atualizar"):
+            if st.button("🔄", help="Atualizar lista de lotes"):
                 st.rerun()
-        
-        # Mostrar info do lote
-        if lote_selecionado != "Novo Lote":
-            st.markdown("---")
-            st.write(f"**Lote: {lote_selecionado}**")
-            
+
+        if novo_ou_existente == "Existente":
+            lotes_options = ["(selecione)"] + lotes if lotes else ["(nenhum)"]
+            idx = lotes_options.index(st.session_state.np_lote) if st.session_state.np_lote in lotes_options else 0
+            lote_selecionado = st.selectbox("Selecionar Lote", lotes_options, index=idx)
+        else:
+            lote_text_input = st.text_input(
+                "Nome do novo lote",
+                value=st.session_state.np_novo_lote,
+                placeholder="Ex: LOTE 01",
+            )
+            lote_selecionado = lote_text_input.strip() if lote_text_input.strip() else "Novo Lote"
+
+        st.markdown("---")
+
+        # Stats do lote selecionado
+        if lote_selecionado and lote_selecionado != "(selecione)" and lote_selecionado != "Novo Lote":
             lote_pesagens = [p for p in pesagens if p['lote'] == lote_selecionado]
             if lote_pesagens:
                 pesos_lote = [p['peso_kg'] for p in lote_pesagens]
-                
-                # Geral
-                cl1, cl2, cl3 = st.columns(3)
-                cl1.metric("Qtd Total", len(pesos_lote))
-                cl2.metric("Peso Total", f"{sum(pesos_lote):.1f} kg")
-                cl3.metric("Media", f"{sum(pesos_lote)/len(pesos_lote):.1f} kg")
-                
-                # Por Sexo
-                masculinos = [p for p in lote_pesagens if p['sexo'] == 'M']
-                femininos = [p for p in lote_pesagens if p['sexo'] == 'F']
-                media_m = sum([p['peso_kg'] for p in masculinos])/len(masculinos) if masculinos else 0
-                media_f = sum([p['peso_kg'] for p in femininos])/len(femininos) if femininos else 0
-                
-                cs1, cs2 = st.columns(2)
-                cs1.metric("Machos", f"{len(masculinos)}", f"{media_m:.1f} kg" if masculinos else None)
-                cs2.metric("Femeas", f"{len(femininos)}", f"{media_f:.1f} kg" if femininos else None)
-                
-                # Por Raca
-                zebuinos = [p for p in lote_pesagens if p['raca'] == 'Zebuinos']
-                cruzado = [p for p in lote_pesagens if p['raca'] == 'Cruzado']
-                media_z = sum([p['peso_kg'] for p in zebuinos])/len(zebuinos) if zebuinos else 0
-                media_c = sum([p['peso_kg'] for p in cruzado])/len(cruzado) if cruzado else 0
-                
-                cr1, cr2 = st.columns(2)
-                cr1.metric("Zebuinos", f"{len(zebuinos)}", f"{media_z:.1f} kg" if zebuinos else None)
-                cr2.metric("Cruzado", f"{len(cruzado)}", f"{media_c:.1f} kg" if cruzado else None)
-                
-                # Por Combinacao
-                st.write("**Por Combinacao Sexo + Raca**")
-                mz = [p for p in lote_pesagens if p['sexo'] == 'M' and p['raca'] == 'Zebuinos']
-                mc = [p for p in lote_pesagens if p['sexo'] == 'M' and p['raca'] == 'Cruzado']
-                fz = [p for p in lote_pesagens if p['sexo'] == 'F' and p['raca'] == 'Zebuinos']
-                fc = [p for p in lote_pesagens if p['sexo'] == 'F' and p['raca'] == 'Cruzado']
-                
-                mz_media = sum([p['peso_kg'] for p in mz])/len(mz) if mz else 0
-                mc_media = sum([p['peso_kg'] for p in mc])/len(mc) if mc else 0
-                fz_media = sum([p['peso_kg'] for p in fz])/len(fz) if fz else 0
-                fc_media = sum([p['peso_kg'] for p in fc])/len(fc) if fc else 0
-                
-                cc1, cc2, cc3, cc4 = st.columns(4)
-                cc1.metric("MZ", f"{len(mz)}", f"{mz_media:.1f} kg" if mz else None)
-                cc2.metric("MC", f"{len(mc)}", f"{mc_media:.1f} kg" if mc else None)
-                cc3.metric("FZ", f"{len(fz)}", f"{fz_media:.1f} kg" if fz else None)
-                cc4.metric("FC", f"{len(fc)}", f"{fc_media:.1f} kg" if fc else None)
-        
-        st.markdown("---")
-        
-        # Formulario
-        with st.form("pesagem"):
-            c1, c2 = st.columns(2)
-            with c1:
-                # ID automatico
-                col_id_auto, col_id_manual = st.columns([1, 2])
-                with col_id_auto:
-                    auto_id = st.checkbox("ID Automatico", value=False, key="auto_id")
-                with col_id_manual:
-                    if 'auto_id' in st.session_state and st.session_state.auto_id:
-                        numero = gerar_id_automatico()
-                        st.text_input("Numero", value=numero, disabled=True, key="numero_disabled")
-                    else:
-                        numero = st.text_input("Numero *", placeholder="BZ-001", key="numero")
-                
-                if lote_selecionado == "Novo Lote":
-                    lote = st.text_input("Lote *", placeholder="LOTE 1", key="lote")
+                total = len(pesos_lote)
+
+                # Métricas principais em linha
+                m1, m2, m3, m4 = st.columns(4)
+                m1.metric("Total", total)
+                m2.metric("Peso Total", f"{sum(pesos_lote):.1f} kg")
+                m3.metric("Média", f"{sum(pesos_lote)/total:.1f} kg")
+                m4.metric("Mín / Máx", f"{min(pesos_lote):.1f} / {max(pesos_lote):.1f} kg")
+
+                # Por sexo
+                masc = [p for p in lote_pesagens if p['sexo'] == 'M']
+                fem = [p for p in lote_pesagens if p['sexo'] == 'F']
+                media_m = sum(p['peso_kg'] for p in masc)/len(masc) if masc else 0
+                media_f = sum(p['peso_kg'] for p in fem)/len(fem) if fem else 0
+
+                s1, s2 = st.columns(2)
+                s1.metric("Machos", len(masc), f"{media_m:.1f} kg méd" if masc else None)
+                s2.metric("Fêmeas", len(fem), f"{media_f:.1f} kg méd" if fem else None)
+
+                # Por raça
+                zeb = [p for p in lote_pesagens if p['raca'] == 'Zebuinos']
+                cruz = [p for p in lote_pesagens if p['raca'] == 'Cruzado']
+                media_z = sum(p['peso_kg'] for p in zeb)/len(zeb) if zeb else 0
+                media_c = sum(p['peso_kg'] for p in cruz)/len(cruz) if cruz else 0
+
+                r1, r2 = st.columns(2)
+                r1.metric("Zebuínos", len(zeb), f"{media_z:.1f} kg méd" if zeb else None)
+                r2.metric("Cruzado", len(cruz), f"{media_c:.1f} kg méd" if cruz else None)
+
+                # Por combinação
+                def comb(m, r): return [p for p in lote_pesagens if p['sexo'] == m and p['raca'] == r]
+                combos = [("MZ", 'M', 'Zebuinos'), ("MC", 'M', 'Cruzado'),
+                          ("FZ", 'F', 'Zebuinos'), ("FC", 'F', 'Cruzado')]
+                cols = st.columns(4)
+                for i, (label, sx, rc) in enumerate(combos):
+                    g = comb(sx, rc)
+                    med = sum(p['peso_kg'] for p in g)/len(g) if g else 0
+                    cols[i].metric(label, len(g), f"{med:.1f} kg" if g else None)
+
+                st.markdown("---")
+
+        # ===== BLOCO 2: FORMULÁRIO =====
+        st.markdown("### 📝 Registrar Pesagem")
+
+        with st.form("pesagem", clear_on_submit=True):
+            row1 = st.columns([3, 1])  # número + toggle auto
+            with row1[0]:
+                if st.session_state.np_auto_id:
+                    numero = st.text_input(
+                        "Número do Bezerro *",
+                        value="",
+                        placeholder="ID automático ✔",
+                        label_visibility="collapsed"
+                    )
                 else:
-                    lote = lote_selecionado
-                    st.text_input("Lote", value=lote, disabled=True, key="lote_disabled")
-                
-                data = st.date_input("Data", date.today(), key="data")
-            
-            with c2:
-                sexo = st.selectbox("Sexo", ["Macho", "Femea"], key="sexo")
-                raca = st.selectbox("Raca", ["Zebuinos", "Cruzado"], key="raca")
-                peso = st.number_input("Peso (kg)", min_value=10.0, max_value=500.0, value=50.0, step=0.5, key="peso")
-            
-            obs = st.text_area("Observacoes", key="obs")
-            
-            col_submit, col_clear = st.columns([1, 1])
-            with col_submit:
-                submit = st.form_submit_button("Salvar", use_container_width=True)
-            with col_clear:
-                clear = st.form_submit_button("Limpar", use_container_width=True)
-            
-            if submit:
-                if numero and lote:
-                    sexo_map = {"Macho": "M", "Femea": "F"}
-                    if database.adicionar_pesagem(user['id'], numero, peso, sexo_map[sexo], raca, lote, str(data), datetime.now().strftime("%H:%M:%S"), obs):
-                        st.success(f"{numero} salvo!")
+                    numero = st.text_input(
+                        "Número do Bezerro *",
+                        value=st.session_state.np_numero,
+                        placeholder="Ex: BZ-001"
+                    )
+            with row1[1]:
+                st.write("")
+                auto_id_toggle = st.checkbox("Auto ID", value=st.session_state.np_auto_id)
+
+            row2 = st.columns([1, 1, 1])
+            with row2[0]:
+                sexo = st.selectbox(
+                    "Sexo", ["Macho", "Fêmea"],
+                    index=["Macho", "Fêmea"].index(st.session_state.np_sexo) if st.session_state.np_sexo in ["Macho", "Fêmea"] else 0
+                )
+            with row2[1]:
+                raca = st.selectbox(
+                    "Raça", ["Zebuinos", "Cruzado"],
+                    index=["Zebuinos", "Cruzado"].index(st.session_state.np_raca) if st.session_state.np_raca in ["Zebuinos", "Cruzado"] else 0
+                )
+            with row2[2]:
+                peso = st.number_input(
+                    "Peso (kg) *", min_value=10.0, max_value=500.0,
+                    value=float(st.session_state.np_peso), step=0.5, format="%.1f"
+                )
+
+            row3 = st.columns([1, 3])
+            with row3[0]:
+                data = st.date_input("Data", date.today())
+            with row3[1]:
+                obs = st.text_area(
+                    "Observações", value=st.session_state.np_obs,
+                    placeholder="Opcional...", label_visibility="collapsed"
+                )
+
+            st.markdown("")
+
+            submitted = st.form_submit_button(
+                "💾 Salvar Pesagem",
+                use_container_width=True,
+                type="primary"
+            )
+
+            if submitted:
+                if not numero and auto_id_toggle:
+                    numero = gerar_id_automatico()
+
+                if not numero or lote_selecionado in ["(selecione)", "Novo Lote", ""]:
+                    st.error("Preencha número e lote!")
+                else:
+                    sexo_map = {"Macho": "M", "Fêmea": "F"}
+                    ok = database.adicionar_pesagem(
+                        user['id'], numero, peso,
+                        sexo_map[sexo], raca,
+                        lote_selecionado,
+                        str(data),
+                        datetime.now().strftime("%H:%M:%S"),
+                        obs
+                    )
+                    if ok:
+                        st.session_state.np_sexo = sexo
+                        st.session_state.np_raca = raca
+                        st.session_state.np_peso = peso
+                        st.session_state.np_obs = obs
+                        st.session_state.np_auto_id = auto_id_toggle
+                        st.session_state.np_numero = ""
+                        st.session_state.np_novo_lote = ""
+                        if lote_selecionado != "Novo Lote":
+                            st.session_state.np_lote = lote_selecionado
                         st.rerun()
                     else:
-                        st.error("Erro ao salvar.")
-                else:
-                    st.error("Preencha numero e lote!")
-            
-            if clear:
-                st.rerun()
-        
-        # Excluir ultimo registro
+                        st.error("Erro ao salvar. Tente novamente.")
+
+        # ===== BLOCO 3: AÇÕES (último registro) =====
         if pesagens:
             ultimo = pesagens[0]
             st.markdown("---")
-            st.write(f"Ultimo registro: **{ultimo['numero_bezerro']}** ({ultimo['peso_kg']} kg)")
-            if st.button("Excluir Ultimo Registro"):
-                database.deletar_pesagem(user['id'], ultimo['id'])
-                st.success(f"{ultimo['numero_bezerro']} excluido!")
-                st.rerun()
+            col_a1, col_a2 = st.columns([3, 1])
+            with col_a1:
+                st.info(f"Último registro: **{ultimo['numero_bezerro']}** — {ultimo['peso_kg']} kg — {ultimo['lote']}")
+            with col_a2:
+                if st.button("🗑️ Excluir Último", use_container_width=True):
+                    database.deletar_pesagem(user['id'], ultimo['id'])
+                    st.rerun()
     
     # ============ CONSULTAR ============
     elif menu == "📋 Consultar":
