@@ -251,7 +251,10 @@ def show_login():
         }
         </style>
         <div class="login-box">
-        <h1 style="text-align:center;">🐄 CriaControl</h1>
+        <div style="text-align:center;">
+            <img src="/static/icon/sim_bezerro.png" width="80" style="margin-bottom:0.5rem;">
+            <h1 style="margin:0;">CriaControl</h1>
+        </div>
     """, unsafe_allow_html=True)
     
     st.markdown("**Sistema de Pesagem de Bezerros**")
@@ -309,7 +312,11 @@ def show_dashboard():
     # Header
     col1, col2 = st.columns([3, 1])
     with col1:
-        st.title("🐄 CriaControl")
+        col_img, col_txt = st.columns([1, 5])
+        with col_img:
+            st.image("static/icon/sim_bezerro.png", width=55)
+        with col_txt:
+            st.markdown('<h1 style="margin:0; line-height:55px;">CriaControl</h1>', unsafe_allow_html=True)
         st.write(f"**Usuário:** {user['username']} ({user['role']})")
     with col2:
         if st.button("🚪 Sair"):
@@ -322,9 +329,9 @@ def show_dashboard():
 
     # ============ SOBRE ============
     st.sidebar.markdown("---")
-    st.sidebar.subheader("ℹ️ Sobre")
+    st.sidebar.subheader("Sobre")
     st.sidebar.markdown("""
-    **🐄 CriaControl v1.0**
+    **CriaControl v1.0**
     
     Sistema de gestão de pesagem de bezerros.
     
