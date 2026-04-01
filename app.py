@@ -568,7 +568,7 @@ def show_dashboard():
 
         lotes = database.obter_lotes(user['id'])
 
-        # ===== BLOCO 1: SELETOR DE LOTE + STATS =====
+        # ===== BLOCO 1: SELETOR DE LOTE (sempre primeiro) =====
         st.markdown("### 📋 Lote")
         col_lote, col_refresh = st.columns([4, 1])
         with col_lote:
@@ -594,23 +594,30 @@ def show_dashboard():
             )
             lote_selecionado = lote_text_input.strip() if lote_text_input.strip() else "Novo Lote"
 
+        # Determina se lote é válido para destravar o formulário
+        lote_valido = (
+            lote_selecionado
+            and lote_selecionado != "(selecione)"
+            and lote_selecionado != "(nenhum)"
+            and lote_selecionado != "Novo Lote"
+            and lote_selecionado != ""
+        )
+
         st.markdown("---")
 
-        # Stats do lote selecionado
-        if lote_selecionado and lote_selecionado != "(selecione)" and lote_selecionado != "Novo Lote":
+        # ===== STATS (só se lote válido e com dados) =====
+        if lote_valido:
             lote_pesagens = [p for p in pesagens if p['lote'] == lote_selecionado]
             if lote_pesagens:
                 pesos_lote = [p['peso_kg'] for p in lote_pesagens]
                 total = len(pesos_lote)
 
-                # Métricas principais em linha
                 m1, m2, m3, m4 = st.columns(4)
                 m1.metric("Total", total)
                 m2.metric("Peso Total", f"{sum(pesos_lote):.1f} kg")
                 m3.metric("Média", f"{sum(pesos_lote)/total:.1f} kg")
                 m4.metric("Mín / Máx", f"{min(pesos_lote):.1f} / {max(pesos_lote):.1f} kg")
 
-                # Por sexo
                 masc = [p for p in lote_pesagens if p['sexo'] == 'M']
                 fem = [p for p in lote_pesagens if p['sexo'] == 'F']
                 media_m = sum(p['peso_kg'] for p in masc)/len(masc) if masc else 0
@@ -620,7 +627,6 @@ def show_dashboard():
                 s1.metric("Machos", len(masc), f"{media_m:.1f} kg méd" if masc else None)
                 s2.metric("Fêmeas", len(fem), f"{media_f:.1f} kg méd" if fem else None)
 
-                # Por raça
                 zeb = [p for p in lote_pesagens if p['raca'] == 'Zebuinos']
                 cruz = [p for p in lote_pesagens if p['raca'] == 'Cruzado']
                 media_z = sum(p['peso_kg'] for p in zeb)/len(zeb) if zeb else 0
@@ -630,7 +636,6 @@ def show_dashboard():
                 r1.metric("Zebuínos", len(zeb), f"{media_z:.1f} kg méd" if zeb else None)
                 r2.metric("Cruzado", len(cruz), f"{media_c:.1f} kg méd" if cruz else None)
 
-                # Por combinação
                 def comb(m, r): return [p for p in lote_pesagens if p['sexo'] == m and p['raca'] == r]
                 combos = [("MZ", 'M', 'Zebuinos'), ("MC", 'M', 'Cruzado'),
                           ("FZ", 'F', 'Zebuinos'), ("FC", 'F', 'Cruzado')]
@@ -642,17 +647,30 @@ def show_dashboard():
 
                 st.markdown("---")
 
-        # ===== BLOCO 2: FORMULÁRIO =====
+        # ===== BLOCO 2: FORMULÁRIO (bloqueado se lote inválido) =====
         st.markdown("### 📝 Registrar Pesagem")
 
+        if not lote_valido:
+            st.warning("⚠️ Selecione ou crie um lote acima para desbloquear o registro de pesagens.")
+
         with st.form("pesagem", clear_on_submit=True):
-            row1 = st.columns([3, 1])  # número + toggle auto
+            locked = not lote_valido
+
+            row1 = st.columns([3, 1])
             with row1[0]:
-                if st.session_state.np_auto_id:
+                if st.session_state.np_auto_id and not locked:
                     numero = st.text_input(
                         "Número do Bezerro *",
                         value="",
                         placeholder="ID automático ✔",
+                        label_visibility="collapsed"
+                    )
+                elif locked:
+                    numero = st.text_input(
+                        "Número do Bezerro *",
+                        value="",
+                        placeholder="Bloqueado — selecione um lote",
+                        disabled=True,
                         label_visibility="collapsed"
                     )
                 else:
@@ -663,40 +681,48 @@ def show_dashboard():
                     )
             with row1[1]:
                 st.write("")
-                auto_id_toggle = st.checkbox("Auto ID", value=st.session_state.np_auto_id)
+                auto_id_toggle = st.checkbox("Auto ID", value=st.session_state.np_auto_id, disabled=locked)
 
             row2 = st.columns([1, 1, 1])
             with row2[0]:
                 sexo = st.selectbox(
                     "Sexo", ["Macho", "Fêmea"],
-                    index=["Macho", "Fêmea"].index(st.session_state.np_sexo) if st.session_state.np_sexo in ["Macho", "Fêmea"] else 0
+                    index=["Macho", "Fêmea"].index(st.session_state.np_sexo)
+                    if st.session_state.np_sexo in ["Macho", "Fêmea"] else 0,
+                    disabled=locked
                 )
             with row2[1]:
                 raca = st.selectbox(
                     "Raça", ["Zebuinos", "Cruzado"],
-                    index=["Zebuinos", "Cruzado"].index(st.session_state.np_raca) if st.session_state.np_raca in ["Zebuinos", "Cruzado"] else 0
+                    index=["Zebuinos", "Cruzado"].index(st.session_state.np_raca)
+                    if st.session_state.np_raca in ["Zebuinos", "Cruzado"] else 0,
+                    disabled=locked
                 )
             with row2[2]:
                 peso = st.number_input(
                     "Peso (kg) *", min_value=10.0, max_value=500.0,
-                    value=float(st.session_state.np_peso), step=0.5, format="%.1f"
+                    value=float(st.session_state.np_peso), step=0.5, format="%.1f",
+                    disabled=locked
                 )
 
             row3 = st.columns([1, 3])
             with row3[0]:
-                data = st.date_input("Data", date.today())
+                data = st.date_input("Data", date.today(), disabled=locked)
             with row3[1]:
                 obs = st.text_area(
                     "Observações", value=st.session_state.np_obs,
-                    placeholder="Opcional...", label_visibility="collapsed"
+                    placeholder="Opcional...",
+                    disabled=locked,
+                    label_visibility="collapsed"
                 )
 
             st.markdown("")
 
             submitted = st.form_submit_button(
-                "💾 Salvar Pesagem",
+                "💾 Salvar Pesagem" if not locked else "🔒 Selecione um lote para salvar",
                 use_container_width=True,
-                type="primary"
+                type="primary",
+                disabled=locked
             )
 
             if submitted:
