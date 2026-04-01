@@ -22,8 +22,7 @@ if 'page' not in st.session_state:
 
 # ===== TENTAR LOGIN AUTOMÁTICO =====
 if st.session_state.user is None:
-    saved_user = database.load_session()
-    if saved_user:
+    if saved_user := database.load_session():
         st.session_state.user = saved_user
         st.session_state.page = 'dashboard'
 
@@ -48,6 +47,16 @@ def gerar_id_automatico():
     data = datetime.now().strftime("%Y%m%d")
     uid = str(uuid.uuid4())[:4].upper()
     return f"BZ-{data}-{uid}"
+
+def _add_pdf_row(pdf, row, col_widths=(40, 30, 25, 20, 25, 25)):
+    """Helper function to add a data row to PDF table."""
+    pdf.cell(col_widths[0], 8, str(row['numero_bezerro'])[:15], 1)
+    pdf.cell(col_widths[1], 8, str(row['lote'])[:12], 1)
+    pdf.cell(col_widths[2], 8, str(row['data_pesagem']), 1)
+    pdf.cell(col_widths[3], 8, str(row['sexo']), 1)
+    pdf.cell(col_widths[4], 8, str(row['raca'])[:10], 1)
+    pdf.cell(col_widths[5], 8, f"{row['peso_kg']:.1f}", 1)
+    pdf.ln()
 
 def gerar_pdf(df, titulo):
     """Gera PDF com os dados."""
@@ -94,13 +103,7 @@ def gerar_pdf(df, titulo):
     
     pdf.set_font("Arial", size=9)
     for _, row in df.head(50).iterrows():
-        pdf.cell(40, 8, str(row['numero_bezerro'])[:15], 1)
-        pdf.cell(30, 8, str(row['lote'])[:12], 1)
-        pdf.cell(25, 8, str(row['data_pesagem']), 1)
-        pdf.cell(20, 8, str(row['sexo']), 1)
-        pdf.cell(25, 8, str(row['raca'])[:10], 1)
-        pdf.cell(25, 8, f"{row['peso_kg']:.1f}", 1)
-        pdf.ln()
+        _add_pdf_row(pdf, row)
     
     if len(df) > 50:
         pdf.ln(5)
@@ -192,13 +195,7 @@ def gerar_pdf_download(df, titulo):
     
     pdf.set_font("Arial", size=8)
     for _, row in df.head(30).iterrows():
-        pdf.cell(35, 7, str(row['numero_bezerro'])[:12], 1)
-        pdf.cell(25, 7, str(row['lote'])[:10], 1)
-        pdf.cell(22, 7, str(row['data_pesagem']), 1)
-        pdf.cell(18, 7, str(row['sexo']), 1)
-        pdf.cell(22, 7, str(row['raca'])[:9], 1)
-        pdf.cell(22, 7, f"{row['peso_kg']:.1f}", 1)
-        pdf.ln()
+        _add_pdf_row(pdf, row, col_widths=(35, 25, 22, 18, 22, 22))
     
     if len(df) > 30:
         pdf.ln(5)
@@ -699,6 +696,7 @@ def show_dashboard():
                         value=st.session_state.np_numero,
                         placeholder="Ex: BZ-001"
                     )
+                    st.session_state.np_numero = numero  # persiste para quando auto_id for desativado
             with row1[1]:
                 st.write("")
 
@@ -746,44 +744,56 @@ def show_dashboard():
             )
 
             if submitted:
-                numero_final = numero if numero else st.session_state.np_numero_auto
+                if auto_id_toggle:
+                    # Auto ID ON: usa valor ja exibido no campo
+                    numero_final = numero if numero else st.session_state.np_numero_auto
+                else:
+                    # Auto ID OFF: campo obrigatorio
+                    if not numero:
+                        st.error("Preencha o ID do bezerro!")
+                        numero_final = None
+                    else:
+                        numero_final = numero
 
-                try:
-                    peso_val = float(peso_str.replace(",", "."))
-                    if peso_val < 10.0 or peso_val > 500.0:
-                        st.error("Peso deve ser entre 10 e 500 kg!")
-                        peso_val = None
-                except (ValueError, AttributeError):
-                    st.error("Peso inválido! Digite um número entre 10 e 500.")
-                    peso_val = None
-
-                if not numero_final or lote_selecionado in ["(selecione)", "Novo Lote", ""]:
-                    st.error("Preencha número e lote!")
-                elif peso_val is None:
+                if numero_final is None:
                     pass  # erro ja mostrado acima
                 else:
-                    sexo_map = {"Macho": "M", "Fêmea": "F"}
-                    ok = database.adicionar_pesagem(
-                        user['id'], numero_final, peso_val,
-                        sexo_map[sexo], raca,
-                        lote_selecionado,
-                        str(data),
-                        datetime.now().strftime("%H:%M:%S"),
-                        obs
-                    )
-                    if ok:
-                        st.session_state.np_sexo = sexo
-                        st.session_state.np_raca = raca
-                        st.session_state.np_peso = 0.0  # zera peso para proximo registro
-                        st.session_state.np_obs = ""
-                        st.session_state.np_numero = ""
-                        st.session_state.np_novo_lote = ""
-                        st.session_state.np_numero_auto = gerar_id_automatico()
-                        if lote_selecionado != "Novo Lote":
-                            st.session_state.np_lote = lote_selecionado
-                        st.rerun()
+                    try:
+                        peso_val = float(peso_str.replace(",", "."))
+                        if peso_val < 10.0 or peso_val > 500.0:
+                            st.error("Peso deve ser entre 10 e 500 kg!")
+                            peso_val = None
+                    except (ValueError, AttributeError):
+                        st.error("Peso inválido! Digite um número entre 10 e 500.")
+                        peso_val = None
+
+                    if peso_val is None:
+                        pass
+                    elif lote_selecionado in ["(selecione)", "Novo Lote", ""]:
+                        st.error("Selecione ou crie um lote!")
                     else:
-                        st.error("Erro ao salvar. Tente novamente.")
+                        sexo_map = {"Macho": "M", "Fêmea": "F"}
+                        ok = database.adicionar_pesagem(
+                            user['id'], numero_final, peso_val,
+                            sexo_map[sexo], raca,
+                            lote_selecionado,
+                            str(data),
+                            datetime.now().strftime("%H:%M:%S"),
+                            obs
+                        )
+                        if ok:
+                            st.session_state.np_sexo = sexo
+                            st.session_state.np_raca = raca
+                            st.session_state.np_peso = 0.0
+                            st.session_state.np_obs = ""
+                            st.session_state.np_numero = ""
+                            st.session_state.np_novo_lote = ""
+                            st.session_state.np_numero_auto = gerar_id_automatico()
+                            if lote_selecionado != "Novo Lote":
+                                st.session_state.np_lote = lote_selecionado
+                            st.rerun()
+                        else:
+                            st.error("Erro ao salvar. Tente novamente.")
 
         # ===== BLOCO 3: AÇÕES (último registro) =====
         if pesagens:
