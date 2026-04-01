@@ -558,7 +558,7 @@ def show_dashboard():
         if 'np_auto_id' not in st.session_state:
             st.session_state.np_auto_id = True
         if 'np_peso' not in st.session_state:
-            st.session_state.np_peso = 50.0
+            st.session_state.np_peso = 0.0
         if 'np_obs' not in st.session_state:
             st.session_state.np_obs = ""
         if 'np_numero' not in st.session_state:
@@ -687,6 +687,7 @@ def show_dashboard():
                     )
                 elif auto_id_toggle:
                     numero = st.session_state.np_numero_auto
+                    st.session_state.np_numero = numero  # guarda para fallback no submit
                     st.markdown(
                         f"<div style='padding:0.5rem; background:#1f77b410; border-radius:0.5rem; "
                         f"font-weight:bold; color:#1f77b4;'>{numero}</div>",
@@ -717,9 +718,10 @@ def show_dashboard():
                     disabled=locked
                 )
             with row2[2]:
-                peso = st.number_input(
-                    "Peso (kg) *", min_value=10.0, max_value=500.0,
-                    value=float(st.session_state.np_peso), step=0.5, format="%.1f",
+                peso_str = st.text_input(
+                    "Peso (kg) *",
+                    value="" if st.session_state.np_peso == 0.0 else str(st.session_state.np_peso),
+                    placeholder="0.0",
                     disabled=locked
                 )
 
@@ -744,15 +746,25 @@ def show_dashboard():
             )
 
             if submitted:
-                if not numero and auto_id_toggle:
-                    numero = gerar_id_automatico()
+                numero_final = numero if numero else st.session_state.np_numero_auto
 
-                if not numero or lote_selecionado in ["(selecione)", "Novo Lote", ""]:
+                try:
+                    peso_val = float(peso_str.replace(",", "."))
+                    if peso_val < 10.0 or peso_val > 500.0:
+                        st.error("Peso deve ser entre 10 e 500 kg!")
+                        peso_val = None
+                except (ValueError, AttributeError):
+                    st.error("Peso inválido! Digite um número entre 10 e 500.")
+                    peso_val = None
+
+                if not numero_final or lote_selecionado in ["(selecione)", "Novo Lote", ""]:
                     st.error("Preencha número e lote!")
+                elif peso_val is None:
+                    pass  # erro ja mostrado acima
                 else:
                     sexo_map = {"Macho": "M", "Fêmea": "F"}
                     ok = database.adicionar_pesagem(
-                        user['id'], numero, peso,
+                        user['id'], numero_final, peso_val,
                         sexo_map[sexo], raca,
                         lote_selecionado,
                         str(data),
@@ -762,8 +774,8 @@ def show_dashboard():
                     if ok:
                         st.session_state.np_sexo = sexo
                         st.session_state.np_raca = raca
-                        st.session_state.np_peso = peso
-                        st.session_state.np_obs = obs
+                        st.session_state.np_peso = 0.0  # zera peso para proximo registro
+                        st.session_state.np_obs = ""
                         st.session_state.np_numero = ""
                         st.session_state.np_novo_lote = ""
                         st.session_state.np_numero_auto = gerar_id_automatico()
