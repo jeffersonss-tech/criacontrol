@@ -816,17 +816,39 @@ def show_dashboard():
                         else:
                             _salvar_pesagem(user, numero_final, peso_val, sexo, raca, lote_selecionado, str(data), obs)
 
-        # ===== BLOCO 3: AÇÕES (último registro) =====
-        if pesagens:
-            ultimo = pesagens[0]
-            st.markdown("---")
-            col_a1, col_a2 = st.columns([3, 1])
-            with col_a1:
-                st.info(f"Último registro: **{ultimo['numero_bezerro']}** — {ultimo['peso_kg']} kg — {ultimo['lote']}")
-            with col_a2:
-                if st.button("🗑️ Excluir Último", width='stretch'):
-                    database.deletar_pesagem(user['id'], ultimo['id'])
-                    st.rerun()
+        # ===== BLOCO 3: REGISTROS DO LOTE ATUAL =====
+        if lote_valido and lote_selecionado != "(selecione)":
+            regs = [p for p in pesagens if p['lote'] == lote_selecionado]
+            if regs:
+                st.markdown("---")
+                st.markdown(f"### 🗂️ Registros do Lote **{lote_selecionado}** ({len(regs)} bezerros)")
+
+                regs_sorted = sorted(regs, key=lambda p: p['data_pesagem'], reverse=True)
+                df_regs = pd.DataFrame(regs_sorted)
+                df_display = df_regs[['numero_bezerro', 'peso_kg', 'sexo', 'raca', 'data_pesagem']].copy()
+                df_display['sexo'] = df_display['sexo'].map({'M': 'Macho', 'F': 'Fêmea'})
+                df_display.columns = ['ID', 'Peso (kg)', 'Sexo', 'Raça', 'Data/Hora']
+
+                st.dataframe(df_display, height=220, hide_index=True)
+
+                # Footer com total
+                st.caption(
+                    f"💡 {len(regs)} bezerros — "
+                    f"Peso total: {sum(p['peso_kg'] for p in regs):.1f} kg — "
+                    f"Média: {sum(p['peso_kg'] for p in regs)/len(regs):.1f} kg"
+                )
+
+                # Excluir registro individual
+                del_options = {r['id']: f"{r['numero_bezerro']} — {r['peso_kg']:.1f} kg — {r['data_pesagem']}"
+                               for r in regs_sorted}
+                del_id = st.selectbox("🗑️ Excluir registro", options=["(selecione)"] + list(del_options.keys()),
+                                       format_func=lambda x: del_options.get(x, x))
+                if del_id != "(selecione)":
+                    if st.button("🗑️ Confirmar exclusão"):
+                        database.deletar_pesagem(user['id'], del_id)
+                        st.rerun()
+                        database.deletar_pesagem(user['id'], del_id)
+                        st.rerun()
 
     elif menu == "📋 Consultar":
         st.subheader("Consultar Pesagens")
