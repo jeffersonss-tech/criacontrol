@@ -495,7 +495,7 @@ def show_dashboard():
             st.write("### Por Sexo")
             sexo_df = df.groupby('sexo').agg({'peso_kg': ['count', 'mean']}).round(1)
             sexo_df.columns = ['Quantidade', 'Media']
-            st.dataframe(sexo_df, use_container_width=True)
+            st.dataframe(sexo_df, width='stretch')
             
             st.bar_chart(df.groupby('sexo')['peso_kg'].mean())
             
@@ -505,7 +505,7 @@ def show_dashboard():
             st.write("### Por Raca")
             raca_df = df.groupby('raca').agg({'peso_kg': ['count', 'mean']}).round(1)
             raca_df.columns = ['Quantidade', 'Media']
-            st.dataframe(raca_df, use_container_width=True)
+            st.dataframe(raca_df, width='stretch')
             
             st.bar_chart(df.groupby('raca')['peso_kg'].mean())
             
@@ -517,7 +517,7 @@ def show_dashboard():
             combo_df.columns = ['Quantidade', 'Media']
             combo_df = combo_df.reset_index()
             combo_df['combinacao'] = combo_df['sexo'] + ' ' + combo_df['raca']
-            st.dataframe(combo_df.set_index('combinacao'), use_container_width=True)
+            st.dataframe(combo_df.set_index('combinacao'), width='stretch')
             
             # Grafico separado
             combo_chart = df.groupby(['sexo', 'raca'])['peso_kg'].mean().reset_index()
@@ -530,7 +530,7 @@ def show_dashboard():
             st.write("### Por Lote")
             lote_df = df.groupby('lote').agg({'peso_kg': ['count', 'mean', 'min', 'max']}).round(1)
             lote_df.columns = ['Qtd', 'Media', 'Min', 'Max']
-            st.dataframe(lote_df, use_container_width=True)
+            st.dataframe(lote_df, width='stretch')
             
             col1, col2 = st.columns(2)
             with col1:
@@ -542,7 +542,7 @@ def show_dashboard():
             
             # ============ TABELA COMPLETA ============
             with st.expander("Ver todos os registros"):
-                st.dataframe(df, use_container_width=True)
+                st.dataframe(df, width='stretch')
     
     # ============ NOVA PESAGEM ============
     elif menu == "➕ Nova Pesagem":
@@ -565,6 +565,8 @@ def show_dashboard():
             st.session_state.np_numero = ""
         if 'np_novo_lote' not in st.session_state:
             st.session_state.np_novo_lote = ""
+        if 'np_numero_auto' not in st.session_state:
+            st.session_state.np_numero_auto = gerar_id_automatico()
 
         lotes = database.obter_lotes(user['id'])
 
@@ -650,28 +652,42 @@ def show_dashboard():
         # ===== BLOCO 2: FORMULÁRIO (bloqueado se lote inválido) =====
         st.markdown("### 📝 Registrar Pesagem")
 
+        locked = not lote_valido
+
         if not lote_valido:
             st.warning("⚠️ Selecione ou crie um lote acima para desbloquear o registro de pesagens.")
 
-        with st.form("pesagem", clear_on_submit=True):
-            locked = not lote_valido
+        # Checkbox FORA do form — atualiza session_state imediatamente ao clicar
+        col_toggle, col_placeholder = st.columns([1, 3])
+        with col_toggle:
+            auto_id_toggle = st.checkbox(
+                "🔑 Auto ID",
+                value=st.session_state.np_auto_id,
+                disabled=locked,
+                help="Gera ID automaticamente a cada pesagem"
+            )
+        with col_placeholder:
+            st.write("")
+        st.session_state.np_auto_id = auto_id_toggle
 
+        with st.form("pesagem", clear_on_submit=True):
             row1 = st.columns([3, 1])
             with row1[0]:
-                if st.session_state.np_auto_id and not locked:
-                    numero = st.text_input(
-                        "Número do Bezerro *",
-                        value="",
-                        placeholder="ID automático ✔",
-                        label_visibility="collapsed"
-                    )
-                elif locked:
-                    numero = st.text_input(
+                if locked:
+                    numero = ""
+                    st.text_input(
                         "Número do Bezerro *",
                         value="",
                         placeholder="Bloqueado — selecione um lote",
                         disabled=True,
                         label_visibility="collapsed"
+                    )
+                elif auto_id_toggle:
+                    numero = st.session_state.np_numero_auto
+                    st.markdown(
+                        f"<div style='padding:0.5rem; background:#1f77b410; border-radius:0.5rem; "
+                        f"font-weight:bold; color:#1f77b4;'>{numero}</div>",
+                        unsafe_allow_html=True
                     )
                 else:
                     numero = st.text_input(
@@ -681,7 +697,6 @@ def show_dashboard():
                     )
             with row1[1]:
                 st.write("")
-                auto_id_toggle = st.checkbox("Auto ID", value=st.session_state.np_auto_id, disabled=locked)
 
             row2 = st.columns([1, 1, 1])
             with row2[0]:
@@ -720,7 +735,7 @@ def show_dashboard():
 
             submitted = st.form_submit_button(
                 "💾 Salvar Pesagem" if not locked else "🔒 Selecione um lote para salvar",
-                use_container_width=True,
+                width="stretch",
                 type="primary",
                 disabled=locked
             )
@@ -746,9 +761,9 @@ def show_dashboard():
                         st.session_state.np_raca = raca
                         st.session_state.np_peso = peso
                         st.session_state.np_obs = obs
-                        st.session_state.np_auto_id = auto_id_toggle
                         st.session_state.np_numero = ""
                         st.session_state.np_novo_lote = ""
+                        st.session_state.np_numero_auto = gerar_id_automatico()
                         if lote_selecionado != "Novo Lote":
                             st.session_state.np_lote = lote_selecionado
                         st.rerun()
@@ -763,7 +778,7 @@ def show_dashboard():
             with col_a1:
                 st.info(f"Último registro: **{ultimo['numero_bezerro']}** — {ultimo['peso_kg']} kg — {ultimo['lote']}")
             with col_a2:
-                if st.button("🗑️ Excluir Último", use_container_width=True):
+                if st.button("🗑️ Excluir Último", width='stretch'):
                     database.deletar_pesagem(user['id'], ultimo['id'])
                     st.rerun()
     
@@ -779,7 +794,7 @@ def show_dashboard():
             if filtro != "Todos":
                 df_pesagens = df_pesagens[df_pesagens['lote'] == filtro]
             
-            st.dataframe(df_pesagens[['numero_bezerro', 'lote', 'data_pesagem', 'sexo', 'raca', 'peso_kg']], use_container_width=True)
+            st.dataframe(df_pesagens[['numero_bezerro', 'lote', 'data_pesagem', 'sexo', 'raca', 'peso_kg']], width='stretch')
             
             # Deletar
             st.markdown("---")
@@ -811,7 +826,7 @@ def show_dashboard():
             
             st.write("Usuarios Cadastrados")
             df_users = pd.DataFrame(usuarios)
-            st.dataframe(df_users, use_container_width=True)
+            st.dataframe(df_users, width='stretch')
             
             st.markdown("---")
             
