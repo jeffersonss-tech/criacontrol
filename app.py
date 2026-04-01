@@ -272,7 +272,7 @@ def show_dashboard():
     user = st.session_state.user
     pesagens = database.obter_pesagens(user['id'])
     stats = database.obter_estatisticas(user['id'])
-    
+
     # Header
     col1, col2 = st.columns([3, 1])
     with col1:
@@ -281,12 +281,12 @@ def show_dashboard():
     with col2:
         if st.button("🚪 Sair"):
             logout()
-    
+
     st.markdown("---")
-    
+
     # Menu
     menu = st.sidebar.selectbox("Menu", ["📊 Dashboard", "📈 Relatorios", "➕ Nova Pesagem", "📋 Consultar", "👥 Gerenciar Usuários"])
-    
+
     # ============ SOBRE ============
     st.sidebar.markdown("---")
     st.sidebar.subheader("ℹ️ Sobre")
@@ -311,22 +311,22 @@ def show_dashboard():
     ---
     *Automação para o agronegócio brasileiro* 🇧🇷
     """)
-    
+
     # ============ RELATORIOS ============
     if menu == "📈 Relatorios":
         st.subheader("📈 Relatorios")
-        
+
         if not pesagens:
             st.info("Nenhuma pesagem ainda.")
         else:
             df = pd.DataFrame(pesagens)
-            
+
             # Opcoes de relatorio
             tipo = st.radio("Tipo de Relatorio", ["Geral", "Por Lote"])
-            
+
             if tipo == "Geral":
                 st.write("### Relatorio Geral")
-                
+
                 # Estatisticas gerais
                 pesos = df['peso_kg']
                 st.write(f"**Total de Animais:** {len(pesos)}")
@@ -334,7 +334,7 @@ def show_dashboard():
                 st.write(f"**Media de Peso:** {pesos.mean():.1f} kg")
                 st.write(f"**Peso Minimo:** {pesos.min():.1f} kg")
                 st.write(f"**Peso Maximo:** {pesos.max():.1f} kg")
-                
+
                 # Por sexo
                 st.write("---")
                 st.write("**Por Sexo**")
@@ -342,7 +342,7 @@ def show_dashboard():
                 sexo_stats.columns = ['Quantidade', 'Media']
                 st.dataframe(sexo_stats)
                 st.bar_chart(df.groupby('sexo')['peso_kg'].mean())
-                
+
                 # Por raca
                 st.write("---")
                 st.write("**Por Raca**")
@@ -350,7 +350,7 @@ def show_dashboard():
                 raca_stats.columns = ['Quantidade', 'Media']
                 st.dataframe(raca_stats)
                 st.bar_chart(df.groupby('raca')['peso_kg'].mean())
-                
+
                 # Por combinacao
                 st.write("---")
                 st.write("**Por Combinacao Sexo + Raca**")
@@ -359,27 +359,27 @@ def show_dashboard():
                 combo_stats = combo_stats.reset_index()
                 combo_stats['combinacao'] = combo_stats['sexo'] + ' ' + combo_stats['raca']
                 st.dataframe(combo_stats.set_index('combinacao'))
-                
+
                 combo_chart = df.groupby(['sexo', 'raca'])['peso_kg'].mean().reset_index()
                 combo_chart['label'] = combo_chart['sexo'] + ' ' + combo_chart['raca']
                 st.bar_chart(combo_chart.set_index('label')['peso_kg'])
-                
+
                 # Tabela completa
                 st.write("---")
                 with st.expander("Dados Completos"):
                     st.dataframe(df)
-            
+
             else:
                 # Por lote
                 st.write("### Relatorio por Lote")
                 lotes_disponiveis = ["Todos"] + sorted(df['lote'].unique().tolist())
                 lote_selecionado = st.selectbox("Selecionar Lote", lotes_disponiveis)
-                
+
                 if lote_selecionado == "Todos":
                     df_lote = df
                 else:
                     df_lote = df[df['lote'] == lote_selecionado]
-                
+
                 # Estatisticas do lote
                 pesos_lote = df_lote['peso_kg']
                 st.write(f"**Lote:** {lote_selecionado}")
@@ -388,7 +388,7 @@ def show_dashboard():
                 st.write(f"**Media de Peso:** {pesos_lote.mean():.1f} kg")
                 st.write(f"**Peso Minimo:** {pesos_lote.min():.1f} kg")
                 st.write(f"**Peso Maximo:** {pesos_lote.max():.1f} kg")
-                
+
                 # Por sexo
                 st.write("---")
                 st.write("**Por Sexo**")
@@ -396,7 +396,7 @@ def show_dashboard():
                 sexo_stats.columns = ['Quantidade', 'Media']
                 st.dataframe(sexo_stats)
                 st.bar_chart(df_lote.groupby('sexo')['peso_kg'].mean())
-                
+
                 # Por raca
                 st.write("---")
                 st.write("**Por Raca**")
@@ -404,7 +404,7 @@ def show_dashboard():
                 raca_stats.columns = ['Quantidade', 'Media']
                 st.dataframe(raca_stats)
                 st.bar_chart(df_lote.groupby('raca')['peso_kg'].mean())
-                
+
                 # Por combinacao
                 st.write("---")
                 st.write("**Por Combinacao Sexo + Raca**")
@@ -413,22 +413,22 @@ def show_dashboard():
                 combo_stats = combo_stats.reset_index()
                 combo_stats['combinacao'] = combo_stats['sexo'] + ' ' + combo_stats['raca']
                 st.dataframe(combo_stats.set_index('combinacao'))
-                
+
                 combo_chart = df_lote.groupby(['sexo', 'raca'])['peso_kg'].mean().reset_index()
                 combo_chart['label'] = combo_chart['sexo'] + ' ' + combo_chart['raca']
                 st.bar_chart(combo_chart.set_index('label')['peso_kg'])
-                
+
                 # Tabela do lote
                 st.write("---")
                 with st.expander("Dados do Lote"):
                     st.dataframe(df_lote)
-            
+
             # ============ EXPORTAR ============
             st.markdown("---")
             st.write("### Exportar Dados")
-            
+
             col1, col2 = st.columns(2)
-            
+
             with col1:
                 st.write("**Excel**")
                 if tipo == "Geral":
@@ -441,7 +441,7 @@ def show_dashboard():
                     else:
                         excel_df = df_lote
                         filename = f"relatorio_{lote_selecionado}.xlsx"
-                
+
                 # Exportar para Excel
                 import io
                 buffer = io.BytesIO()
@@ -454,7 +454,7 @@ def show_dashboard():
                     file_name=filename,
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 )
-            
+
             with col2:
                 st.write("**PDF**")
                 if st.button("Gerar PDF"):
@@ -465,19 +465,19 @@ def show_dashboard():
                             gerar_pdf_download(df, "Relatorio_Todos_Lotes")
                         else:
                             gerar_pdf_download(df_lote, f"Relatorio_{lote_selecionado}")
-    
+
     # ============ DASHBOARD ============
     if menu == "📊 Dashboard":
         st.subheader("📊 Dashboard")
-        
+
         if not pesagens:
             st.info("Nenhuma pesagem ainda. Vá em 'Nova Pesagem' para começar!")
         else:
             df = pd.DataFrame(pesagens)
-            
+
             # ============ ESTATÍSTICAS GERAIS ============
             st.write("### Estatisticas Gerais")
-            
+
             pesos = df['peso_kg']
             c1, c2, c3, c4, c5 = st.columns(5)
             c1.metric("Total", len(pesos))
@@ -485,29 +485,29 @@ def show_dashboard():
             c3.metric("Media", f"{pesos.mean():.1f} kg")
             c4.metric("Minimo", f"{pesos.min():.1f} kg")
             c5.metric("Maximo", f"{pesos.max():.1f} kg")
-            
+
             st.markdown("---")
-            
+
             # ============ POR SEXO ============
             st.write("### Por Sexo")
             sexo_df = df.groupby('sexo').agg({'peso_kg': ['count', 'mean']}).round(1)
             sexo_df.columns = ['Quantidade', 'Media']
             st.dataframe(sexo_df, width='stretch')
-            
+
             st.bar_chart(df.groupby('sexo')['peso_kg'].mean())
-            
+
             st.markdown("---")
-            
+
             # ============ POR RACA ============
             st.write("### Por Raca")
             raca_df = df.groupby('raca').agg({'peso_kg': ['count', 'mean']}).round(1)
             raca_df.columns = ['Quantidade', 'Media']
             st.dataframe(raca_df, width='stretch')
-            
+
             st.bar_chart(df.groupby('raca')['peso_kg'].mean())
-            
+
             st.markdown("---")
-            
+
             # ============ POR COMBINACAO ============
             st.write("### Por Combinacao Sexo + Raca")
             combo_df = df.groupby(['sexo', 'raca']).agg({'peso_kg': ['count', 'mean']}).round(1)
@@ -515,33 +515,32 @@ def show_dashboard():
             combo_df = combo_df.reset_index()
             combo_df['combinacao'] = combo_df['sexo'] + ' ' + combo_df['raca']
             st.dataframe(combo_df.set_index('combinacao'), width='stretch')
-            
+
             # Grafico separado
             combo_chart = df.groupby(['sexo', 'raca'])['peso_kg'].mean().reset_index()
             combo_chart['label'] = combo_chart['sexo'] + ' ' + combo_chart['raca']
             st.bar_chart(combo_chart.set_index('label')['peso_kg'])
-            
+
             st.markdown("---")
-            
+
             # ============ POR LOTE ============
             st.write("### Por Lote")
             lote_df = df.groupby('lote').agg({'peso_kg': ['count', 'mean', 'min', 'max']}).round(1)
             lote_df.columns = ['Qtd', 'Media', 'Min', 'Max']
             st.dataframe(lote_df, width='stretch')
-            
+
             col1, col2 = st.columns(2)
             with col1:
                 st.bar_chart(df.groupby('lote').size())
             with col2:
                 st.bar_chart(df.groupby('lote')['peso_kg'].mean())
-            
+
             st.markdown("---")
-            
+
             # ============ TABELA COMPLETA ============
             with st.expander("Ver todos os registros"):
                 st.dataframe(df, width='stretch')
-    
-    # ============ NOVA PESAGEM ============
+
     elif menu == "➕ Nova Pesagem":
         st.subheader("➕ Nova Pesagem")
 
@@ -591,10 +590,10 @@ def show_dashboard():
                 value=st.session_state.np_novo_lote,
                 placeholder="Ex: LOTE 01",
             )
-            lote_selecionado = lote_text_input.strip() if lote_text_input.strip() else "Novo Lote"
+            lote_selecionado = lote_text_input.strip() or "Novo Lote"
 
         # Determina se lote é válido para destravar o formulário
-        lote_valido = (
+        lote_valido: bool | str = (
             lote_selecionado
             and lote_selecionado != "(selecione)"
             and lote_selecionado != "(nenhum)"
@@ -656,8 +655,16 @@ def show_dashboard():
 
         # Checkbox FORA do form com callback para reação imediata
         def toggle_auto_id():
-            st.session_state.np_auto_id = st.session_state.cb_auto_id
-            st.session_state.np_numero_auto = gerar_id_automatico()
+            novo_estado = st.session_state.cb_auto_id
+            st.session_state.np_auto_id = novo_estado
+            if novo_estado:
+                # Ao ativar auto ID: limpa campo manual
+                st.session_state.np_numero = ""
+                st.session_state.np_numero_auto = gerar_id_automatico()
+            else:
+                # Ao desativar: limpa tudo para digitar do zero
+                st.session_state.np_numero = ""
+                st.session_state.np_numero_auto = ""
             st.rerun()
 
         st.checkbox(
@@ -736,7 +743,7 @@ def show_dashboard():
 
             st.markdown("")
 
-            submitted = st.form_submit_button(
+            submitted: bool = st.form_submit_button(
                 "💾 Salvar Pesagem" if not locked else "🔒 Selecione um lote para salvar",
                 width="stretch",
                 type="primary",
@@ -755,9 +762,7 @@ def show_dashboard():
                     else:
                         numero_final = numero
 
-                if numero_final is None:
-                    pass  # erro ja mostrado acima
-                else:
+                if numero_final is not None:
                     try:
                         peso_val = float(peso_str.replace(",", "."))
                         if peso_val < 10.0 or peso_val > 500.0:
@@ -806,21 +811,20 @@ def show_dashboard():
                 if st.button("🗑️ Excluir Último", width='stretch'):
                     database.deletar_pesagem(user['id'], ultimo['id'])
                     st.rerun()
-    
-    # ============ CONSULTAR ============
+
     elif menu == "📋 Consultar":
         st.subheader("Consultar Pesagens")
-        
+
         lotes = ["Todos"] + database.obter_lotes(user['id'])
         filtro = st.selectbox("Filtrar por Lote", lotes)
-        
+
         if pesagens:
             df_pesagens = pd.DataFrame(pesagens)
             if filtro != "Todos":
                 df_pesagens = df_pesagens[df_pesagens['lote'] == filtro]
-            
+
             st.dataframe(df_pesagens[['numero_bezerro', 'lote', 'data_pesagem', 'sexo', 'raca', 'peso_kg']], width='stretch')
-            
+
             # Deletar
             st.markdown("---")
             st.write("Deletar")
@@ -830,7 +834,7 @@ def show_dashboard():
                 if database.deletar_pesagem(user['id'], delete_id):
                     st.success("Deletado!")
                     st.rerun()
-            
+
             # Limpar tudo
             st.markdown("---")
             if st.button("Limpar TODOS os dados"):
@@ -839,41 +843,40 @@ def show_dashboard():
                     st.rerun()
         else:
             st.info("Nenhuma pesagem encontrada.")
-    
-    # ============ GERENCIAR USUARIOS ============
+
     elif menu == "👥 Gerenciar Usuários":
         st.subheader("Gerenciar Usuarios")
-        
+
         if user['role'] != 'admin':
             st.error("Acesso negado. Apenas administradores.")
         else:
             usuarios = auth.get_all_users()
-            
+
             st.write("Usuarios Cadastrados")
             df_users = pd.DataFrame(usuarios)
             st.dataframe(df_users, width='stretch')
-            
+
             st.markdown("---")
-            
+
             col1, col2 = st.columns(2)
-            
+
             with col1:
                 st.write("Editar Usuario")
                 edit_id = st.selectbox("Selecionar", [u['id'] for u in usuarios if u['id'] != user['id']], 
                                      format_func=lambda x: next((u['username'] for u in usuarios if u['id'] == x), ''))
-                
+
                 if edit_id:
                     new_role = st.selectbox("Novo papel", ["user", "admin"])
                     if st.button("Salvar"):
                         auth.update_user_role(edit_id, new_role)
                         st.success("Atualizado!")
                         st.rerun()
-            
+
             with col2:
                 st.write("Excluir Usuario")
                 delete_id = st.selectbox("Selecionar para excluir", [u['id'] for u in usuarios if u['id'] != user['id']], 
                                         format_func=lambda x: next((u['username'] for u in usuarios if u['id'] == x), ''), key="del")
-                
+
                 if delete_id:
                     user_to_delete = next((u for u in usuarios if u['id'] == delete_id), None)
                     if user_to_delete:
@@ -881,13 +884,13 @@ def show_dashboard():
                             auth.delete_user(delete_id)
                             st.success("Excluido!")
                             st.rerun()
-            
+
             # Mudar senha de outros usuarios
             st.markdown("---")
             st.write("### Mudar Senha de Usuario")
             edit_pass_id = st.selectbox("Selecionar usuario", [u['id'] for u in usuarios if u['id'] != user['id']], 
                                        format_func=lambda x: next((u['username'] for u in usuarios if u['id'] == x), ''), key="edit_pass")
-            
+
             if edit_pass_id:
                 user_to_edit = next((u for u in usuarios if u['id'] == edit_pass_id), None)
                 if user_to_edit:
@@ -896,7 +899,7 @@ def show_dashboard():
                         auth.update_user_password(edit_pass_id, nova_senha_user)
                         st.success(f"Senha de {user_to_edit['username']} alterada!")
                         st.rerun()
-            
+
             st.markdown("---")
             st.write("### Mudar Senha")
             with st.form("mudar_senha"):
@@ -904,7 +907,7 @@ def show_dashboard():
                 senha_atual = st.text_input("Senha atual", type="password")
                 nova_senha = st.text_input("Nova senha", type="password")
                 confirmar_senha = st.text_input("Confirmar nova senha", type="password")
-                
+
                 if st.form_submit_button("Alterar Senha"):
                     if nova_senha != confirmar_senha:
                         st.error("Nova senha e confirmação não coincidem!")
@@ -919,7 +922,7 @@ def show_dashboard():
                             st.success("Senha alterada com sucesso!")
                         else:
                             st.error("Senha atual incorreta!")
-            
+
             st.markdown("---")
             st.write("Criar Novo Usuario")
             with st.form("new_user"):
@@ -929,7 +932,7 @@ def show_dashboard():
                     new_password = st.text_input("Senha", type="password")
                 with c2:
                     new_role = st.selectbox("Papel", ["user", "admin"])
-                
+
                 if st.form_submit_button("Criar"):
                     if new_username and new_password:
                         success, msg = auth.create_user(new_username, new_password, new_role)
