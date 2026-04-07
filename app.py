@@ -811,11 +811,11 @@ def show_dashboard():
                 if numero_final is not None:
                     try:
                         peso_val = float(peso_str.replace(",", "."))
-                        if peso_val < 10.0 or peso_val > 500.0:
-                            st.error("Peso deve ser entre 10 e 500 kg!")
+                        if peso_val < 50.0 or peso_val > 1500.0:
+                            st.error("Peso deve ser entre 50 e 1500 kg!")
                             peso_val = None
                     except (ValueError, AttributeError):
-                        st.error("Peso inválido! Digite um número entre 10 e 500.")
+                        st.error("Peso inválido! Digite um número entre 50 e 1500.")
                         peso_val = None
 
                     if peso_val is None:
