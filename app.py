@@ -235,6 +235,10 @@ def _salvar_pesagem(user, numero, peso, sexo, raca, lote, data, obs):
         st.session_state.np_numero_auto = gerar_id_automatico()
         if lote != "Novo Lote":
             st.session_state.np_lote = lote
+        # Não limpar prefixo/numero manual quando Auto ID está desligado
+        if st.session_state.get("np_auto_id"):
+            st.session_state.np_numero_manual = ""
+            st.session_state.np_prefix_manual = ""
         st.rerun()
     else:
         st.error("Erro ao salvar. Tente novamente.")
@@ -602,6 +606,8 @@ def show_dashboard():
             st.session_state.np_numero = ""
         if 'np_numero_manual' not in st.session_state:
             st.session_state.np_numero_manual = ""
+        if 'np_prefix_manual' not in st.session_state:
+            st.session_state.np_prefix_manual = ""
         if 'np_novo_lote' not in st.session_state:
             st.session_state.np_novo_lote = ""
         if 'np_numero_auto' not in st.session_state:
@@ -704,11 +710,13 @@ def show_dashboard():
                 # Ao ativar auto ID: limpa campo manual
                 st.session_state.np_numero = ""
                 st.session_state.np_numero_manual = ""
+                st.session_state.np_prefix_manual = ""
                 st.session_state.np_numero_auto = gerar_id_automatico()
             else:
                 # Ao desativar: limpa tudo para digitar do zero
                 st.session_state.np_numero = ""
                 st.session_state.np_numero_manual = ""
+                st.session_state.np_prefix_manual = ""
                 st.session_state.np_numero_auto = ""
             st.rerun()
 
@@ -743,12 +751,21 @@ def show_dashboard():
                         unsafe_allow_html=True
                     )
                 else:
-                    numero_input = st.text_input(
-                        "Número do Bezerro *",
-                        key="np_numero_manual_input",
-                        value=st.session_state.np_numero_manual,
-                        placeholder="Ex: BZ-001"
-                    )
+                    subrow = st.columns([1, 2])
+                    with subrow[0]:
+                        prefix_input = st.text_input(
+                            "Prefixo (opcional)",
+                            key="np_prefix_manual_input",
+                            value=st.session_state.np_prefix_manual,
+                            placeholder="Ex: BZ-"
+                        )
+                    with subrow[1]:
+                        numero_input = st.text_input(
+                            "Número do Bezerro *",
+                            key="np_numero_manual_input",
+                            value=st.session_state.np_numero_manual,
+                            placeholder="Ex: 001"
+                        )
             with row1[1]:
                 st.write("")
 
@@ -800,13 +817,16 @@ def show_dashboard():
                     # Auto ID ON: usa valor ja exibido no campo
                     numero_final = numero if numero else st.session_state.np_numero_auto
                 else:
-                    # Auto ID OFF: usa o valor digitado manualmente
-                    if not numero_input:
+                    # Auto ID OFF: usa prefixo opcional + número digitado
+                    numero_input_clean = (numero_input or "").strip()
+                    prefix_clean = (prefix_input or "").strip()
+                    if not numero_input_clean:
                         st.error("Preencha o ID do bezerro!")
                         numero_final = None
                     else:
-                        numero_final = numero_input
-                        st.session_state.np_numero_manual = numero_input  # persiste caso o form não limpe
+                        numero_final = f"{prefix_clean}{numero_input_clean}"
+                        st.session_state.np_numero_manual = numero_input_clean  # mantém o número para próxima renderização
+                        st.session_state.np_prefix_manual = prefix_clean
 
                 if numero_final is not None:
                     try:
