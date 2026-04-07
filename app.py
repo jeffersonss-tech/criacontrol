@@ -230,6 +230,7 @@ def _salvar_pesagem(user, numero, peso, sexo, raca, lote, data, obs):
         st.session_state.np_peso = 0.0
         st.session_state.np_obs = ""
         st.session_state.np_numero = ""
+        st.session_state.np_numero_manual = ""
         st.session_state.np_novo_lote = ""
         st.session_state.np_numero_auto = gerar_id_automatico()
         if lote != "Novo Lote":
@@ -599,6 +600,8 @@ def show_dashboard():
             st.session_state.np_obs = ""
         if 'np_numero' not in st.session_state:
             st.session_state.np_numero = ""
+        if 'np_numero_manual' not in st.session_state:
+            st.session_state.np_numero_manual = ""
         if 'np_novo_lote' not in st.session_state:
             st.session_state.np_novo_lote = ""
         if 'np_numero_auto' not in st.session_state:
@@ -700,10 +703,12 @@ def show_dashboard():
             if novo_estado:
                 # Ao ativar auto ID: limpa campo manual
                 st.session_state.np_numero = ""
+                st.session_state.np_numero_manual = ""
                 st.session_state.np_numero_auto = gerar_id_automatico()
             else:
                 # Ao desativar: limpa tudo para digitar do zero
                 st.session_state.np_numero = ""
+                st.session_state.np_numero_manual = ""
                 st.session_state.np_numero_auto = ""
             st.rerun()
 
@@ -738,12 +743,12 @@ def show_dashboard():
                         unsafe_allow_html=True
                     )
                 else:
-                    numero = st.text_input(
+                    numero_input = st.text_input(
                         "Número do Bezerro *",
-                        value=st.session_state.np_numero,
+                        key="np_numero_manual_input",
+                        value=st.session_state.np_numero_manual,
                         placeholder="Ex: BZ-001"
                     )
-                    st.session_state.np_numero = numero  # persiste para quando auto_id for desativado
             with row1[1]:
                 st.write("")
 
@@ -795,12 +800,13 @@ def show_dashboard():
                     # Auto ID ON: usa valor ja exibido no campo
                     numero_final = numero if numero else st.session_state.np_numero_auto
                 else:
-                    # Auto ID OFF: campo obrigatorio
-                    if not numero:
+                    # Auto ID OFF: usa o valor digitado manualmente
+                    if not numero_input:
                         st.error("Preencha o ID do bezerro!")
                         numero_final = None
                     else:
-                        numero_final = numero
+                        numero_final = numero_input
+                        st.session_state.np_numero_manual = numero_input  # persiste caso o form não limpe
 
                 if numero_final is not None:
                     try:
